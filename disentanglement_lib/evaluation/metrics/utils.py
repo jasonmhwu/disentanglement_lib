@@ -133,14 +133,14 @@ def discrete_entropy(ys):
 
 
 @gin.configurable(
-    "discretizer", blacklist=["target"])
+    "discretizer", denylist=["target"])
 def make_discretizer(target, num_bins=gin.REQUIRED,
                      discretizer_fn=gin.REQUIRED):
   """Wrapper that creates discretizers."""
   return discretizer_fn(target, num_bins)
 
 
-@gin.configurable("histogram_discretizer", blacklist=["target"])
+@gin.configurable("histogram_discretizer", denylist=["target"])
 def _histogram_discretize(target, num_bins=gin.REQUIRED):
   """Discretization based on histograms."""
   discretized = np.zeros_like(target)

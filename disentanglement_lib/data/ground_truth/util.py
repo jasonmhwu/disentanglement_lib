@@ -24,7 +24,7 @@ import tensorflow.compat.v1 as tf
 import gin.tf
 
 
-@gin.configurable("correlation", blacklist=["factor_sizes", "latent_factor_indices"])
+@gin.configurable("correlation", denylist=["factor_sizes", "latent_factor_indices"])
 def get_state_space(factor_sizes, latent_factor_indices,
                     active_correlation=False):
     if not active_correlation:
@@ -142,7 +142,7 @@ class CorrelatedSplitDiscreteStateSpace(SplitDiscreteStateSpace):
     ValueError: if an invalid corr type or corr indices are provided.
     """
 
-    @gin.configurable("correlation_details", blacklist=["factor_sizes", "latent_factor_indices"])
+    @gin.configurable("correlation_details", denylist=["factor_sizes", "latent_factor_indices"])
     def __init__(self, factor_sizes, latent_factor_indices, corr_indices=gin.REQUIRED,
                  corr_type=gin.REQUIRED):
         if corr_indices is None:

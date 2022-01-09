@@ -34,7 +34,7 @@ import gin.tf
 from tensorflow_estimator.python.estimator.tpu.tpu_estimator import TPUEstimatorSpec
 
 
-@gin.configurable("weak_loss", blacklist=["z1", "z2", "labels"])
+@gin.configurable("weak_loss", denylist=["z1", "z2", "labels"])
 def make_weak_loss(z1, z2, labels, loss_fn=gin.REQUIRED):
   """Wrapper that creates weakly-supervised losses."""
 

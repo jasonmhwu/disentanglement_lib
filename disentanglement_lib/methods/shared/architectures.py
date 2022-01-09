@@ -22,7 +22,7 @@ import tensorflow.compat.v1 as tf
 import gin.tf
 
 
-@gin.configurable("encoder", whitelist=["num_latent", "encoder_fn"])
+@gin.configurable("encoder", allowlist=["num_latent", "encoder_fn"])
 def make_gaussian_encoder(input_tensor,
                           is_training=True,
                           num_latent=gin.REQUIRED,
@@ -53,7 +53,7 @@ def make_gaussian_encoder(input_tensor,
         is_training=is_training)
 
 
-@gin.configurable("decoder", whitelist=["decoder_fn"])
+@gin.configurable("decoder", allowlist=["decoder_fn"])
 def make_decoder(latent_tensor,
                  output_shape,
                  is_training=True,
@@ -84,7 +84,7 @@ def make_decoder(latent_tensor,
         is_training=is_training)
 
 
-@gin.configurable("discriminator", whitelist=["discriminator_fn"])
+@gin.configurable("discriminator", allowlist=["discriminator_fn"])
 def make_discriminator(input_tensor,
                        is_training=False,
                        discriminator_fn=gin.REQUIRED):
@@ -111,7 +111,7 @@ def make_discriminator(input_tensor,
   return logits, clipped
 
 
-@gin.configurable("fc_encoder", whitelist=[])
+@gin.configurable("fc_encoder", allowlist=[])
 def fc_encoder(input_tensor, num_latent, is_training=True):
   """Fully connected encoder used in beta-VAE paper for the dSprites data.
 
@@ -141,7 +141,7 @@ def fc_encoder(input_tensor, num_latent, is_training=True):
   return means, log_var
 
 
-@gin.configurable("conv_encoder", whitelist=[])
+@gin.configurable("conv_encoder", allowlist=[])
 def conv_encoder(input_tensor, num_latent, is_training=True):
   """Convolutional encoder used in beta-VAE paper for the chairs data.
 
@@ -206,7 +206,7 @@ def conv_encoder(input_tensor, num_latent, is_training=True):
   return means, log_var
 
 
-@gin.configurable("fc_decoder", whitelist=[])
+@gin.configurable("fc_decoder", allowlist=[])
 def fc_decoder(latent_tensor, output_shape, is_training=True):
   """Fully connected encoder used in beta-VAE paper for the dSprites data.
 
@@ -231,7 +231,7 @@ def fc_decoder(latent_tensor, output_shape, is_training=True):
   return tf.reshape(d4, shape=[-1] + output_shape)
 
 
-@gin.configurable("deconv_decoder", whitelist=[])
+@gin.configurable("deconv_decoder", allowlist=[])
 def deconv_decoder(latent_tensor, output_shape, is_training=True):
   """Convolutional decoder used in beta-VAE paper for the chairs data.
 
@@ -288,7 +288,7 @@ def deconv_decoder(latent_tensor, output_shape, is_training=True):
   return tf.reshape(d6, [-1] + output_shape)
 
 
-@gin.configurable("fc_discriminator", whitelist=[])
+@gin.configurable("fc_discriminator", allowlist=[])
 def fc_discriminator(input_tensor, is_training=True):
   """Fully connected discriminator used in FactorVAE paper for all datasets.
 
@@ -319,7 +319,7 @@ def fc_discriminator(input_tensor, is_training=True):
   return logits, probs
 
 
-@gin.configurable("test_encoder", whitelist=["num_latent"])
+@gin.configurable("test_encoder", allowlist=["num_latent"])
 def test_encoder(input_tensor, num_latent, is_training):
   """Simple encoder for testing.
 
@@ -342,7 +342,7 @@ def test_encoder(input_tensor, num_latent, is_training):
   return means, log_var
 
 
-@gin.configurable("test_decoder", whitelist=[])
+@gin.configurable("test_decoder", allowlist=[])
 def test_decoder(latent_tensor, output_shape, is_training=False):
   """Simple decoder for testing.
 

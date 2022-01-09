@@ -63,7 +63,7 @@ def reason_with_gin(input_dir,
 
 
 @gin.configurable(
-    "abstract_reasoning", blacklist=["input_dir", "output_dir", "overwrite"])
+    "abstract_reasoning", denylist=["input_dir", "output_dir", "overwrite"])
 def reason(
     input_dir,
     output_dir,

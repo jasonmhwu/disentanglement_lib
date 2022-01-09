@@ -39,7 +39,7 @@ import gin.tf
 FLAGS = flags.FLAGS
 
 
-@gin.configurable("evaluation", blacklist=["model_dirs", "output_dir"])
+@gin.configurable("evaluation", denylist=["model_dirs", "output_dir"])
 def evaluate(model_dirs,
              output_dir,
              evaluation_fn=gin.REQUIRED,

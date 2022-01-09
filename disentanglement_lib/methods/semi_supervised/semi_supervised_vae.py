@@ -136,7 +136,7 @@ def make_metric_fn(*names):
   return metric_fn
 
 
-@gin.configurable("annealer", blacklist=["gamma", "step"])
+@gin.configurable("annealer", denylist=["gamma", "step"])
 def make_annealer(gamma,
                   step,
                   iteration_threshold=gin.REQUIRED,
@@ -145,21 +145,21 @@ def make_annealer(gamma,
   return anneal_fn(gamma, step, iteration_threshold)
 
 
-@gin.configurable("fixed", blacklist=["gamma", "step"])
+@gin.configurable("fixed", denylist=["gamma", "step"])
 def fixed_annealer(gamma, step, iteration_threshold):
   """No annealing."""
   del step, iteration_threshold
   return gamma
 
 
-@gin.configurable("anneal", blacklist=["gamma", "step"])
+@gin.configurable("anneal", denylist=["gamma", "step"])
 def annealed_annealer(gamma, step, iteration_threshold):
   """Linear annealing."""
   return tf.math.minimum(gamma * 1.,
                          gamma * 1. * tf.to_float(step) / iteration_threshold)
 
 
-@gin.configurable("fine_tune", blacklist=["gamma", "step"])
+@gin.configurable("fine_tune", denylist=["gamma", "step"])
 def fine_tune_annealer(gamma, step, iteration_threshold):
   """Fine tuning.
 
@@ -178,7 +178,7 @@ def fine_tune_annealer(gamma, step, iteration_threshold):
       tf.math.maximum(tf.to_float(0), tf.to_float(step - iteration_threshold)))
 
 
-@gin.configurable("supervised_loss", blacklist=["representation", "labels"])
+@gin.configurable("supervised_loss", denylist=["representation", "labels"])
 def make_supervised_loss(representation, labels,
                          factor_sizes=None, loss_fn=gin.REQUIRED):
   """Wrapper that creates supervised loss."""
@@ -205,7 +205,7 @@ def normalize_labels(labels, factors_num_values):
   return labels / factors_num_values_reshaped
 
 
-@gin.configurable("l2", blacklist=["representation", "labels"])
+@gin.configurable("l2", denylist=["representation", "labels"])
 def supervised_regularizer_l2(representation, labels,
                               factor_sizes=None,
                               learn_scale=True):
@@ -242,7 +242,7 @@ def supervised_regularizer_l2(representation, labels,
         normalize_labels(labels, factor_sizes))
 
 
-@gin.configurable("xent", blacklist=["representation", "labels"])
+@gin.configurable("xent", denylist=["representation", "labels"])
 def supervised_regularizer_xent(representation, labels,
                                 factor_sizes=None):
   """Implements a supervised cross_entropy regularizer.
@@ -269,7 +269,7 @@ def supervised_regularizer_xent(representation, labels,
           labels=normalize_labels(labels, factor_sizes)))
 
 
-@gin.configurable("cov", blacklist=["representation", "labels"])
+@gin.configurable("cov", denylist=["representation", "labels"])
 def supervised_regularizer_cov(representation, labels,
                                factor_sizes=None):
   """Implements a supervised regularizer using a covariance.
@@ -305,7 +305,7 @@ def supervised_regularizer_cov(representation, labels,
       tf.linalg.set_diag(covariance, tf.zeros([num_diagonals])))
 
 
-@gin.configurable("embed", blacklist=["representation", "labels",
+@gin.configurable("embed", denylist=["representation", "labels",
                                       "factor_sizes"])
 def supervised_regularizer_embed(representation, labels,
                                  factor_sizes, sigma=gin.REQUIRED,

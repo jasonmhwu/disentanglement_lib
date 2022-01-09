@@ -35,7 +35,7 @@ from tensorflow_estimator.python.estimator.tpu import tpu_config
 from tensorflow_estimator.python.estimator.tpu.tpu_estimator import TPUEstimator
 
 
-@gin.configurable("dynamics", blacklist=["z", "ground_truth_data",
+@gin.configurable("dynamics", denylist=["z", "ground_truth_data",
                                          "random_state",
                                          "return_index"])
 def simple_dynamics(z, ground_truth_data, random_state,
@@ -147,7 +147,7 @@ def train_with_gin(model_dir,
   gin.clear_config()
 
 
-@gin.configurable("model", blacklist=["model_dir", "overwrite"])
+@gin.configurable("model", denylist=["model_dir", "overwrite"])
 def train(model_dir,
           overwrite=False,
           model=gin.REQUIRED,

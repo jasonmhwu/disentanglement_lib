@@ -28,7 +28,7 @@ import gin.tf
 
 @gin.configurable(
     "mean_representation",
-    blacklist=["ground_truth_data", "gaussian_encoder", "random_state"])
+    denylist=["ground_truth_data", "gaussian_encoder", "random_state"])
 def mean_representation(
     ground_truth_data,
     gaussian_encoder,
@@ -62,7 +62,7 @@ def mean_representation(
 
 @gin.configurable(
     "sampled_representation",
-    blacklist=["ground_truth_data", "gaussian_encoder", "random_state"])
+    denylist=["ground_truth_data", "gaussian_encoder", "random_state"])
 def sampled_representation(ground_truth_data, gaussian_encoder, random_state,
                            save_path):
   """Extracts the random representation from a Gaussian encoder.

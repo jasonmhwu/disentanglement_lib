@@ -55,7 +55,7 @@ def train_with_gin(model_dir,
   gin.clear_config()
 
 
-@gin.configurable("model", blacklist=["model_dir", "overwrite"])
+@gin.configurable("model", denylist=["model_dir", "overwrite"])
 def train(model_dir,
           overwrite=False,
           model=gin.REQUIRED,

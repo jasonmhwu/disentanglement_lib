@@ -97,7 +97,7 @@ def train_test_split(observations, labels, num_labelled_samples,
 
 # We consider different oracles (labeller functions) to test the robustness of
 # the semi-supervised methods to different types of artifacts in the labels.
-@gin.configurable("labeller", blacklist=["labels", "dataset"])
+@gin.configurable("labeller", denylist=["labels", "dataset"])
 def make_labeller(labels,
                   dataset,
                   random_state,
@@ -107,7 +107,7 @@ def make_labeller(labels,
 
 
 @gin.configurable(
-    "perfect_labeller", blacklist=["labels", "dataset"])
+    "perfect_labeller", denylist=["labels", "dataset"])
 def perfect_labeller(labels, dataset, random_state):
   """Returns the true factors of variations without artifacts.
 
@@ -126,7 +126,7 @@ def perfect_labeller(labels, dataset, random_state):
   return labels, dataset.factors_num_values
 
 
-@gin.configurable("bin_labeller", blacklist=["labels", "dataset"])
+@gin.configurable("bin_labeller", denylist=["labels", "dataset"])
 def bin_labeller(labels, dataset, random_state, num_bins=5):
   """Returns simplified factors of variations.
 
@@ -155,7 +155,7 @@ def bin_labeller(labels, dataset, random_state, num_bins=5):
 
 
 @gin.configurable(
-    "noisy_labeller", blacklist=["labels", "dataset"])
+    "noisy_labeller", denylist=["labels", "dataset"])
 def noisy_labeller(labels, dataset, random_state, prob_random=0.1):
   """Returns noisy factors of variations.
 
@@ -182,7 +182,7 @@ def noisy_labeller(labels, dataset, random_state, prob_random=0.1):
 
 
 @gin.configurable(
-    "permuted_labeller", blacklist=["labels", "dataset"])
+    "permuted_labeller", denylist=["labels", "dataset"])
 def permuted_labeller(labels, dataset, random_state):
   """Returns factors of variations where the ordinal information is broken.
 
@@ -244,7 +244,7 @@ def filter_factors(labels, num_observed_factors, random_state):
 
 
 @gin.configurable(
-    "partial_labeller", blacklist=["labels", "dataset"])
+    "partial_labeller", denylist=["labels", "dataset"])
 def partial_labeller(labels, dataset, random_state,
                      num_observed_factors=2):
   """Returns a few factors of variations without artifacts.

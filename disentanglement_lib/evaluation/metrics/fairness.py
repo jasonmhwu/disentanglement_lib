@@ -36,7 +36,7 @@ import gin.tf
 
 @gin.configurable(
     "fairness",
-    blacklist=["ground_truth_data", "representation_function", "random_state",
+    denylist=["ground_truth_data", "representation_function", "random_state",
                "artifact_dir"])
 def compute_fairness(ground_truth_data,
                      representation_function,

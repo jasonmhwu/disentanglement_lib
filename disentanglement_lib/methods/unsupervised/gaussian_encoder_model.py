@@ -53,7 +53,7 @@ class GaussianEncoderModel(object):
         name="sampled_latent_variable")
 
 
-@gin.configurable("export_as_tf_hub", whitelist=[])
+@gin.configurable("export_as_tf_hub", allowlist=[])
 def export_as_tf_hub(gaussian_encoder_model,
                      observation_shape,
                      checkpoint_path,
