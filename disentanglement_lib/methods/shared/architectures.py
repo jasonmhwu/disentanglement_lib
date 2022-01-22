@@ -141,8 +141,8 @@ def fc_encoder(input_tensor, num_latent, is_training=True):
   return means, log_var
 
 
-@gin.configurable("conv_encoder", allowlist=[])
-def conv_encoder(input_tensor, num_latent, is_training=True):
+@gin.configurable("conv_encoder", allowlist=["num_parameters_scale"])
+def conv_encoder(input_tensor, num_latent, is_training=True, num_parameters_scale=1):
   """Convolutional encoder used in beta-VAE paper for the chairs data.
 
   Based on row 3 of Table 1 on page 13 of "beta-VAE: Learning Basic Visual
@@ -165,7 +165,7 @@ def conv_encoder(input_tensor, num_latent, is_training=True):
 
   e1 = tf.layers.conv2d(
       inputs=input_tensor,
-      filters=32,
+      filters=32 * num_parameters_scale,
       kernel_size=4,
       strides=2,
       activation=tf.nn.relu,
@@ -174,7 +174,7 @@ def conv_encoder(input_tensor, num_latent, is_training=True):
   )
   e2 = tf.layers.conv2d(
       inputs=e1,
-      filters=32,
+      filters=32 * num_parameters_scale,
       kernel_size=4,
       strides=2,
       activation=tf.nn.relu,
@@ -183,7 +183,7 @@ def conv_encoder(input_tensor, num_latent, is_training=True):
   )
   e3 = tf.layers.conv2d(
       inputs=e2,
-      filters=64,
+      filters=64 * num_parameters_scale,
       kernel_size=2,
       strides=2,
       activation=tf.nn.relu,
@@ -192,7 +192,7 @@ def conv_encoder(input_tensor, num_latent, is_training=True):
   )
   e4 = tf.layers.conv2d(
       inputs=e3,
-      filters=64,
+      filters=64 * num_parameters_scale,
       kernel_size=2,
       strides=2,
       activation=tf.nn.relu,
@@ -200,7 +200,7 @@ def conv_encoder(input_tensor, num_latent, is_training=True):
       name="e4",
   )
   flat_e4 = tf.layers.flatten(e4)
-  e5 = tf.layers.dense(flat_e4, 256, activation=tf.nn.relu, name="e5")
+  e5 = tf.layers.dense(flat_e4, 256 * num_parameters_scale, activation=tf.nn.relu, name="e5")
   means = tf.layers.dense(e5, num_latent, activation=None, name="means")
   log_var = tf.layers.dense(e5, num_latent, activation=None, name="log_var")
   return means, log_var
@@ -231,8 +231,8 @@ def fc_decoder(latent_tensor, output_shape, is_training=True):
   return tf.reshape(d4, shape=[-1] + output_shape)
 
 
-@gin.configurable("deconv_decoder", allowlist=[])
-def deconv_decoder(latent_tensor, output_shape, is_training=True):
+@gin.configurable("deconv_decoder", allowlist=[num_parameters_scale])
+def deconv_decoder(latent_tensor, output_shape, is_training=True, num_parameters_scale=1):
   """Convolutional decoder used in beta-VAE paper for the chairs data.
 
   Based on row 3 of Table 1 on page 13 of "beta-VAE: Learning Basic Visual
@@ -249,12 +249,12 @@ def deconv_decoder(latent_tensor, output_shape, is_training=True):
       pixel intensities.
   """
   del is_training
-  d1 = tf.layers.dense(latent_tensor, 256, activation=tf.nn.relu)
-  d2 = tf.layers.dense(d1, 1024, activation=tf.nn.relu)
-  d2_reshaped = tf.reshape(d2, shape=[-1, 4, 4, 64])
+  d1 = tf.layers.dense(latent_tensor, 256 * num_parameters_scale, activation=tf.nn.relu)
+  d2 = tf.layers.dense(d1, 1024 * num_parameters_scale, activation=tf.nn.relu)
+  d2_reshaped = tf.reshape(d2, shape=[-1, 4, 4, 64 * num_parameters_scale])
   d3 = tf.layers.conv2d_transpose(
       inputs=d2_reshaped,
-      filters=64,
+      filters=64 * num_parameters_scale,
       kernel_size=4,
       strides=2,
       activation=tf.nn.relu,
@@ -263,7 +263,7 @@ def deconv_decoder(latent_tensor, output_shape, is_training=True):
 
   d4 = tf.layers.conv2d_transpose(
       inputs=d3,
-      filters=32,
+      filters=32 * num_parameters_scale,
       kernel_size=4,
       strides=2,
       activation=tf.nn.relu,
@@ -272,7 +272,7 @@ def deconv_decoder(latent_tensor, output_shape, is_training=True):
 
   d5 = tf.layers.conv2d_transpose(
       inputs=d4,
-      filters=32,
+      filters=32 * num_parameters_scale,
       kernel_size=4,
       strides=2,
       activation=tf.nn.relu,

@@ -31,4 +31,6 @@ AdamOptimizer.name = 'Adam'
 AdamOptimizer.use_locking = False
 encoder.encoder_fn = @conv_encoder
 decoder.decoder_fn = @deconv_decoder
+conv_encoder.num_parameters_scale = 0.5
+deconv_encoder.num_parameters_scale = 0.5
 reconstruction_loss.loss_fn = @bernoulli_loss
