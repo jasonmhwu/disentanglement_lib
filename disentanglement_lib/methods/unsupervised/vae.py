@@ -50,6 +50,7 @@ class BaseVAE(gaussian_encoder_model.GaussianEncoderModel):
     regularizer = self.regularizer(kl_loss, z_mean, z_logvar, z_sampled)
     loss = tf.add(reconstruction_loss, regularizer, name="loss")
     elbo = tf.add(reconstruction_loss, kl_loss, name="elbo")
+    
     if mode == tf.estimator.ModeKeys.TRAIN:
       optimizer = optimizers.make_vae_optimizer()
       update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)

@@ -13,7 +13,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-postprocess.postprocess_fn = @mean_representation
-dataset.name="auto"
-postprocess.random_seed = 0
-correlation.active_correlation = "auto"

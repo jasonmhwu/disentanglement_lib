@@ -34,6 +34,10 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import os
+import sys
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+sys.path.append(os.path.abspath("/home/mwu34/disentanglement_lib"))
 from disentanglement_lib.evaluation import evaluate
 from disentanglement_lib.evaluation.metrics import utils
 from disentanglement_lib.methods.unsupervised import train
@@ -46,7 +50,8 @@ import gin.tf
 # 0. Settings
 # ------------------------------------------------------------------------------
 # By default, we save all the results in subdirectories of the following path.
-base_path = "example_output"
+config_folder_path = "/home/mwu34/disentanglement_lib/examples"
+base_path = "/home/mwu34/disentanglement_lib/examples/example_output"
 
 # By default, we do not overwrite output directories. Set this to True, if you
 # want to overwrite (in particular, if you rerun this script several times).
@@ -62,7 +67,7 @@ path_vae = os.path.join(base_path, "vae")
 # disentanglement_lib.methods.unsupervised.train module. To configure
 # training we need to provide a gin config. For a standard VAE, you may have a
 # look at model.gin on how to do this.
-train.train_with_gin(os.path.join(path_vae, "model"), overwrite, ["model.gin"])
+train.train_with_gin(os.path.join(path_vae, "model"), overwrite, [os.path.join(config_folder_path, "model.gin")])
 # After this command, you should have a `vae` subfolder with a model that was
 # trained for a few steps (in reality, you will want to train many more steps).
 
@@ -105,7 +110,9 @@ gin_bindings = [
 # Call training module to train the custom model.
 path_custom_vae = os.path.join(base_path, "BottleneckVAE")
 train.train_with_gin(
-    os.path.join(path_custom_vae, "model"), overwrite, ["model.gin"],
+    os.path.join(path_custom_vae, "model"),
+    overwrite,
+    [os.path.join(config_folder_path, "model.gin")],
     gin_bindings)
 # As before, after this command, you should have a `BottleneckVAE` subfolder
 # with a model that was trained for a few steps.
@@ -118,7 +125,7 @@ train.train_with_gin(
 for path in [path_vae, path_custom_vae]:
   representation_path = os.path.join(path, "representation")
   model_path = os.path.join(path, "model")
-  postprocess_gin = ["postprocess.gin"]  # This contains the settings.
+  postprocess_gin = [os.path.join(config_folder_path, "postprocess.gin")]  # This contains the settings.
   # postprocess.postprocess_with_gin defines the standard extraction protocol.
   postprocess.postprocess_with_gin(model_path, representation_path, overwrite,
                                    postprocess_gin)

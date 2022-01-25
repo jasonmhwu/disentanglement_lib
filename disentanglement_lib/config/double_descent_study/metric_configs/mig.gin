@@ -13,7 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-postprocess.postprocess_fn = @mean_representation
+evaluation.evaluation_fn = @mig
 dataset.name="auto"
-postprocess.random_seed = 0
-correlation.active_correlation = "auto"
+evaluation.random_seed = 0
+mig.num_train=10000
+discretizer.discretizer_fn = @histogram_discretizer
+discretizer.num_bins = 20
+correlation.active_correlation="auto"

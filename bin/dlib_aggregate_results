@@ -21,13 +21,16 @@ from __future__ import division
 from __future__ import print_function
 from absl import app
 from absl import flags
+import os
+import sys
+sys.path.append(os.path.abspath("/home/mwu34/disentanglement_lib"))
 from disentanglement_lib.utils import aggregate_results
 
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string(
     "result_file_pattern",
-    "output/*/metrics/*/*/results/aggregate/evaluation.json",
+    "output_study_double_descent/*/metrics/*/*/results/aggregate/evaluation.json",
     "String with glob pattern to all the result files that "
     "should be aggregated (e.g. output/*/results/aggregate/evaluation.json).")
 flags.DEFINE_string("output_path", "results.json",

@@ -51,6 +51,7 @@ def train_with_gin(model_dir,
   if gin_bindings is None:
     gin_bindings = []
   gin.parse_config_files_and_bindings(gin_config_files, gin_bindings)
+
   train(model_dir, overwrite)
   gin.clear_config()
 
@@ -99,7 +100,7 @@ def train(model_dir,
 
   # Obtain the dataset.
   dataset = named_data.get_named_ground_truth_data()
-
+  
   # We create a TPUEstimator based on the provided model. This is primarily so
   # that we could switch to TPU training in the future. For now, we train
   # locally on GPUs.

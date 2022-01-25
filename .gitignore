@@ -2,3 +2,8 @@ __pycache__/
 .DS_Store
 .idea/
 datasets/
+dataset_visualizations/
+examples/example_output/
+output_*/
+pretrained_*/
+
