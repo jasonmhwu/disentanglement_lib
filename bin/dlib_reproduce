@@ -108,8 +108,8 @@ def main(unused_argv):
     model_dir = FLAGS.model_dir
 
   # We visualize reconstructions, samples and latent space traversals.
-  visualize_dir = os.path.join(output_directory, "visualizations")
-  visualize_model.visualize(model_dir, visualize_dir, FLAGS.overwrite)
+  # visualize_dir = os.path.join(output_directory, "visualizations")
+  # visualize_model.visualize(model_dir, visualize_dir, FLAGS.overwrite)
 
   # We fix the random seed for the postprocessing and evaluation steps (each
   # config gets a different but reproducible seed derived from a master seed of
