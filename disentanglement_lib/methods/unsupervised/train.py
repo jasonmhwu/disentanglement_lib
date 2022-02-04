@@ -106,7 +106,8 @@ def train(model_dir,
   # locally on GPUs.
   run_config = contrib_tpu.RunConfig(
       tf_random_seed=random_seed,
-      keep_checkpoint_max=1,
+      keep_checkpoint_max=30,
+      save_checkpoints_steps=10000,
       tpu_config=contrib_tpu.TPUConfig(iterations_per_loop=500))
   tpu_estimator = contrib_tpu.TPUEstimator(
       use_tpu=False,

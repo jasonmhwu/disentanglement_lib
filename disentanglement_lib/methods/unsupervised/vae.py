@@ -65,7 +65,7 @@ class BaseVAE(gaussian_encoder_model.GaussianEncoderModel):
           "reconstruction_loss": reconstruction_loss,
           "elbo": -elbo
       },
-                                                every_n_iter=100)
+                                                every_n_iter=1000)
       return contrib_tpu.TPUEstimatorSpec(
           mode=mode,
           loss=loss,

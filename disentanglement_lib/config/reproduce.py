@@ -28,6 +28,7 @@ from disentanglement_lib.config.correlated_factors_study_ws_id1 import sweep as 
 from disentanglement_lib.config.correlated_factors_study_ws_id2 import sweep as correlated_factors_study_ws_id2
 from disentanglement_lib.config.double_descent_study import sweep as double_descent_study
 from disentanglement_lib.config.double_descent_study_v2 import sweep as double_descent_study_v2
+from disentanglement_lib.config.double_descent_study_v3 import sweep as double_descent_study_v3
 
 STUDIES = {
     "unsupervised_study_v1": unsupervised_study_v1.UnsupervisedStudyV1(),
@@ -47,5 +48,7 @@ STUDIES = {
         double_descent_study.DoubleDescentStudy(),
     "double_descent_study_v2":
         double_descent_study_v2.DoubleDescentStudyV2(),
+    "double_descent_study_v3":
+        double_descent_study_v3.DoubleDescentStudyV3(),
     "test": tests.TestStudy(),
 }
