@@ -27,15 +27,32 @@ import gin.tf
 
 
 @gin.configurable("dataset")
-def get_named_ground_truth_data(name):
+def get_named_ground_truth_data(
+  name,
+  train_with_full_dataset=True,
+  split_method='all',
+  num_training_data=700000
+):
   """Returns ground truth data set based on name.
 
   Args:
     name: String with the name of the dataset.
+    train_with_full_dataset: bool, whether to use full dataset for training.
+    split_method: "train" or "valid", only used when train_with_full_dataset is False.
+    num_training_data: number of data points used in training dataset
 
   Raises:
     ValueError: if an invalid data set name is provided.
   """
+  if (not train_with_full_dataset) and name == "dsprites_full":
+    assert split_method in ['train', 'valid']
+    return dsprites.SubsetDSprites(
+      [1, 2, 3, 4, 5],
+      split_method=split_method,
+      num_training_data=num_training_data,
+    )
+
+  assert train_with_full_dataset
 
   if name == "dsprites_full":
     return dsprites.DSprites([1, 2, 3, 4, 5])
@@ -61,7 +78,5 @@ def get_named_ground_truth_data(name):
     return shapes3d.Shapes3D()
   elif name == "dummy_data":
     return dummy_data.DummyData()
-  elif "dsprites" in name:
-    return dsprites.SubsetDSprites([1, 2, 3, 4, 5], subset_name=name[9:])
   else:
     raise ValueError("Invalid data set name.")

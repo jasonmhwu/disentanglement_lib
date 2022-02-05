@@ -98,9 +98,6 @@ def train(model_dir,
   # and evaluation from this.
   random_state = np.random.RandomState(random_seed)
 
-  # Obtain the dataset.
-  dataset = named_data.get_named_ground_truth_data()
-  
   # We create a TPUEstimator based on the provided model. This is primarily so
   # that we could switch to TPU training in the future. For now, we train
   # locally on GPUs.
@@ -120,10 +117,31 @@ def train(model_dir,
   # Set up time to keep track of elapsed time in results.
   experiment_timer = time.time()
 
-  # Do the actual training.
-  tpu_estimator.train(
-      input_fn=_make_input_fn(dataset, random_state.randint(2**32)),
-      steps=training_steps)
+  # If split_method is all, train on entire dataset
+  # else, train with same number of steps but evaluate dataset every 10k steps
+  if gin.query_parameter("dataset.train_with_full_dataset"):
+      train_dataset = named_data.get_named_ground_truth_data()
+      tpu_estimator.train(
+          input_fn=_make_input_fn(train_dataset, random_state.randint(2 ** 32)),
+          steps=training_steps
+      )
+  else:
+      evaluate_every_n_steps = 10000
+      train_dataset = named_data.get_named_ground_truth_data(split_method="train")
+      valid_dataset = named_data.get_named_ground_truth_data(split_method="valid")
+      print("splitting dataset to train and split subset")
+      train_input_fn = _make_input_fn(train_dataset, random_state.randint(2 ** 32))
+      valid_input_fn = _make_input_fn(valid_dataset, random_state.randint(2 ** 32))
+      for num_iter in range(training_steps // evaluate_every_n_steps):
+          tpu_estimator.train(
+              input_fn=train_input_fn,
+              steps=evaluate_every_n_steps,
+          )
+          tpu_estimator.evaluate(
+              input_fn=valid_input_fn,
+              steps=100,
+          )
+
 
   # Save model as a TFHub module.
   output_shape = named_data.get_named_ground_truth_data().observation_shape

@@ -284,11 +284,13 @@ class SubsetDSprites(ground_truth_data.GroundTruthData):
   4 - position y (32 different values)
   """
 
-  def __init__(self, latent_factor_indices, subset_name):
+  def __init__(self, latent_factor_indices, split_method, num_training_data):
     # By default, all factors (including shape) are considered ground truth
     # factors.
     if latent_factor_indices is None:
       latent_factor_indices = list(range(6))
+    assert split_method in ['train', 'valid']
+
     self.latent_factor_indices = latent_factor_indices
     self.data_shape = [64, 64, 1]
     # Load the data so that we can sample from it.
@@ -299,12 +301,15 @@ class SubsetDSprites(ground_truth_data.GroundTruthData):
       self.factor_sizes = np.array(
           data["metadata"][()]["latents_sizes"], dtype=np.int64)
     # load indices from dsprites directory
-    if subset_name in ["train700k", "valid700k"]:
-      dataset_indices_path = os.path.join(
-        os.environ.get("DISENTANGLEMENT_LIB_DATA", "."), "dsprites",
-        f"{subset_name}.npy"
-      )
-    self.dataset_indices = np.load(dataset_indices_path, allow_pickle=True)
+    subset_name = split_method + str(int(num_training_data))
+    dataset_indices_path = os.path.join(
+      os.environ.get("DISENTANGLEMENT_LIB_DATA", "."), "dsprites",
+      f"{subset_name}.npy"
+    )
+    try:
+      self.dataset_indices = np.load(dataset_indices_path, allow_pickle=True)
+    except:
+      print("can't find path")
 
     self.full_factor_sizes = [1, 3, 6, 40, 32, 32]
     self.factor_names = ["shape", "scale", "orientation", "position x", "position y"]

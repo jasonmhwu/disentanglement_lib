@@ -16,7 +16,9 @@
 model.batch_size = 64
 encoder.num_latent = 10
 model.model = @vae()
-dataset.name = "dsprites_train700k"
+dataset.name = "dsprites"
+dataset.train_with_full_dataset = False
+dataset.num_training_data = 700000
 
 vae.beta = 1.
 vae_optimizer.optimizer_fn = @vae/AdamOptimizer
