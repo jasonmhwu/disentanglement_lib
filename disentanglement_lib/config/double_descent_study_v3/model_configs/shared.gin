@@ -16,7 +16,7 @@
 model.batch_size = 64
 encoder.num_latent = 10
 model.model = @vae()
-dataset.name = "dsprites"
+dataset.name = "dsprites_full"
 dataset.train_with_full_dataset = False
 dataset.num_training_data = 700000
 

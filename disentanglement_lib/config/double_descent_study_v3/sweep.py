@@ -35,7 +35,7 @@ def get_datasets():
 
     # dSprites B
     correlation_indices = h.fixed("correlation_details.corr_indices", [3, 4])
-    dataset_name = h.fixed("dataset.name", "dsprites_train700k")
+    dataset_name = h.fixed("dataset.name", "dsprites_full")
     config_dsprites = h.zipit([correlation_indices, dataset_name])
 
     all_datasets = h.chainit([config_dsprites])

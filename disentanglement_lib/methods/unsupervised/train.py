@@ -97,6 +97,7 @@ def train(model_dir,
   # Create a numpy random state. We will sample the random seeds for training
   # and evaluation from this.
   random_state = np.random.RandomState(random_seed)
+  evaluate_every_n_steps = 10000
 
   # We create a TPUEstimator based on the provided model. This is primarily so
   # that we could switch to TPU training in the future. For now, we train
@@ -126,10 +127,11 @@ def train(model_dir,
           steps=training_steps
       )
   else:
-      evaluate_every_n_steps = 10000
       train_dataset = named_data.get_named_ground_truth_data(split_method="train")
       valid_dataset = named_data.get_named_ground_truth_data(split_method="valid")
       print("splitting dataset to train and split subset")
+      results_dir = os.path.join(model_dir, "results")
+
       train_input_fn = _make_input_fn(train_dataset, random_state.randint(2 ** 32))
       valid_input_fn = _make_input_fn(valid_dataset, random_state.randint(2 ** 32))
       for num_iter in range(training_steps // evaluate_every_n_steps):
@@ -137,14 +139,28 @@ def train(model_dir,
               input_fn=train_input_fn,
               steps=evaluate_every_n_steps,
           )
-          tpu_estimator.evaluate(
+          train_results_dict = tpu_estimator.evaluate(
+              input_fn=train_input_fn,
+              steps=100,
+          )
+          results.update_result_directory(
+              results_dir,
+              "train" + str((num_iter+1) * evaluate_every_n_steps),
+              train_results_dict
+          )
+          valid_results_dict = tpu_estimator.evaluate(
               input_fn=valid_input_fn,
               steps=100,
+          )
+          results.update_result_directory(
+              results_dir,
+              "valid" + str((num_iter+1) * evaluate_every_n_steps),
+              valid_results_dict
           )
 
 
   # Save model as a TFHub module.
-  output_shape = named_data.get_named_ground_truth_data().observation_shape
+  output_shape = train_dataset.observation_shape
   module_export_path = os.path.join(model_dir, "tfhub")
   gaussian_encoder_model.export_as_tf_hub(model, output_shape,
                                           tpu_estimator.latest_checkpoint(),
@@ -153,12 +169,19 @@ def train(model_dir,
   # Save the results. The result dir will contain all the results and config
   # files that we copied along, as we progress in the pipeline. The idea is that
   # these files will be available for analysis at the end.
-  results_dict = tpu_estimator.evaluate(
+  train_results_dict = tpu_estimator.evaluate(
       input_fn=_make_input_fn(
-          dataset, random_state.randint(2**32), num_batches=eval_steps))
-  results_dir = os.path.join(model_dir, "results")
-  results_dict["elapsed_time"] = time.time() - experiment_timer
-  results.update_result_directory(results_dir, "train", results_dict)
+          train_dataset, random_state.randint(2**32), num_batches=eval_steps
+      )
+  )
+  results.update_result_directory(results_dir, "train_final", train_results_dict)
+  valid_results_dict = tpu_estimator.evaluate(
+      input_fn=_make_input_fn(
+          valid_dataset, random_state.randint(2**32), num_batches=eval_steps
+      )
+  )
+  valid_results_dict["elapsed_time"] = time.time() - experiment_timer
+  results.update_result_directory(results_dir, "valid_final", valid_results_dict)
 
 
 def _make_input_fn(ground_truth_data, seed, num_batches=None):
