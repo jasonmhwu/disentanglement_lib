@@ -116,7 +116,12 @@ def postprocess(model_dir,
           gin.bind_parameter("correlation_hyperparameter.line_width",
                              float(gin_dict["correlation_hyperparameter.line_width"].replace("'", "")))
 
-  dataset = named_data.get_named_ground_truth_data()
+
+  if gin.query_parameter("dataset.train_with_full_dataset"):
+    dataset = named_data.get_named_ground_truth_data()
+  else:  # query either the train or validation dataset
+    assert gin.query_parameter("dataset.split_method") in ['train', 'valid']
+    dataset = named_data.get_named_ground_truth_data()
 
   # Path to TFHub module of previously trained model.
   module_path = os.path.join(model_dir, "tfhub")
