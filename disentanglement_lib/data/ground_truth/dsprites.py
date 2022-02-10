@@ -343,11 +343,27 @@ class SubsetDSprites(ground_truth_data.GroundTruthData):
   def _sample_factor(self, i, num, random_state):
     raise NotImplementedError()
 
+  def _index_to_factors(self, index_array):
+    factor_bases = self.factor_bases.astype(int)
+    factors = np.zeros((len(index_array), self.num_factors))
+    for factor_idx, factor_base in enumerate(factor_bases[1:]):
+        factors[:, factor_idx], index_array = np.divmod(index_array, factor_base)
+    return factors
+
   def sample(self, num, random_state):
     """Sample a batch of factors Y and observations X."""
     # factors = self.sample_factors(num, random_state)
-    # return factors, self.sample_observations_from_factors(factors, random_state)
-    raise NotImplementedError()
+    # return factors, self.sample_observations_from_factors(factors, random_state) 
+    batch_indices = random_state.choice(
+      self.dataset_indices,
+      size=num,
+      replace=True
+    )
+    batch_images = np.expand_dims(
+      self.images[batch_indices].astype(np.float32), axis=3
+    )
+    batch_factors = self._index_to_factors(batch_indices)
+    return batch_factors, batch_images
 
   def sample_observations(self, num, random_state):
     """Sample a batch of observations X."""
@@ -360,3 +376,4 @@ class SubsetDSprites(ground_truth_data.GroundTruthData):
       self.images[batch_indices].astype(np.float32), axis=3
     )
     return batch_images
+

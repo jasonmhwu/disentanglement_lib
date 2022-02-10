@@ -113,11 +113,14 @@ def evaluate(model_dir,
     with gin.unlock_config():
       gin.bind_parameter("dataset.name", gin_dict["dataset.name"].replace(
           "'", ""))
+      gin.bind_parameter("dataset.train_with_full_dataset", gin_dict["dataset.train_with_full_dataset"])
+      gin.bind_parameter("dataset.split_method", gin_dict["dataset.split_method"])
+      gin.bind_parameter("dataset.num_training_data", gin_dict["dataset.num_training_data"])
 
   # load correlation gin config details
   if gin.query_parameter("correlation.active_correlation") == "auto":
     # Obtain the correlation parameters from the gin config of the previous step.
-    gin_config_file = os.path.join(model_dir, "results", "gin", "train.gin")
+    gin_config_file = os.path.join(model_dir, "results", "gin", "train_final.gin")
     gin_dict = results.gin_dict(gin_config_file)
     with gin.unlock_config():
       gin.bind_parameter("correlation.active_correlation", bool(gin_dict["correlation.active_correlation"] == "True"))
@@ -129,7 +132,11 @@ def evaluate(model_dir,
           gin.bind_parameter("correlation_hyperparameter.line_width",
                              float(gin_dict["correlation_hyperparameter.line_width"].replace("'", "")))
 
-  dataset = named_data.get_named_ground_truth_data()
+  if gin.query_parameter("dataset.train_with_full_dataset"):
+    dataset = named_data.get_named_ground_truth_data()
+  else:
+    assert gin.query_parameter("dataset.split_method") in ["train", "valid"]
+    dataset = named_data.get_named_ground_truth_data()
 
   # Path to TFHub module of previously trained representation.
   module_path = os.path.join(model_dir, "tfhub")

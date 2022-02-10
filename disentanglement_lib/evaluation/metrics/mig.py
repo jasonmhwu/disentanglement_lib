@@ -65,10 +65,17 @@ def _compute_mig(mus_train, ys_train):
   assert m.shape[0] == mus_train.shape[0]
   assert m.shape[1] == ys_train.shape[0]
   # m is [num_latents, num_factors]
+  logging.info(f"m shape is {m.shape}")
+  logging.info(f"mus_train shape is {mus_train.shape}")
+  logging.info(f"ys_train shape is {ys_train.shape}")
   entropy = utils.discrete_entropy(ys_train)
   sorted_m = np.sort(m, axis=0)[::-1]
-  score_dict["discrete_mig"] = np.mean(
-      np.divide(sorted_m[0, :] - sorted_m[1, :], entropy[:]))
+  if sorted_m.shape[0] == 1:
+      score_dict["discrete_mig"] = np.mean(
+          np.divide(np.zeros(sorted_m[0, :].shape), entropy[:]))
+  else:
+      score_dict["discrete_mig"] = np.mean(
+          np.divide(sorted_m[0, :] - sorted_m[1, :], entropy[:]))
   return score_dict
 
 

@@ -152,4 +152,7 @@ def compute_score_matrix(mus, ys, mus_test, ys_test, continuous_factors):
 
 def compute_avg_diff_top_two(matrix):
   sorted_matrix = np.sort(matrix, axis=0)
-  return np.mean(sorted_matrix[-1, :] - sorted_matrix[-2, :])
+  if sorted_matrix.shape[0] == 1:
+      return 0
+  else:
+      return np.mean(sorted_matrix[-1, :] - sorted_matrix[-2, :])

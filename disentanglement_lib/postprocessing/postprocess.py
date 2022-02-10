@@ -97,14 +97,14 @@ def postprocess(model_dir,
   # is present.
   if gin.query_parameter("dataset.name") == "auto":
     # Obtain the dataset name from the gin config of the previous step.
-    gin_config_file = os.path.join(model_dir, "results", "gin", "train.gin")
+    gin_config_file = os.path.join(model_dir, "results", "gin", "train_final.gin")
     gin_dict = results.gin_dict(gin_config_file)
     with gin.unlock_config():
       gin.bind_parameter("dataset.name", gin_dict["dataset.name"].replace(
           "'", ""))
   if gin.query_parameter("correlation.active_correlation") == "auto":
     # Obtain the correlation parameters from the gin config of the previous step.
-    gin_config_file = os.path.join(model_dir, "results", "gin", "train.gin")
+    gin_config_file = os.path.join(model_dir, "results", "gin", "train_final.gin")
     gin_dict = results.gin_dict(gin_config_file)
     with gin.unlock_config():
       gin.bind_parameter("correlation.active_correlation", bool(gin_dict["correlation.active_correlation"] == "True"))

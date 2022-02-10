@@ -1,8 +1,8 @@
 #!/bin/bash
 
 even_spread=true
-study_name=double_descent_study_v2
-for model_num in 
+study_name=double_descent_study_v7
+for model_num in 94
 do
 	if [ "$even_spread" = true ]
 	then
