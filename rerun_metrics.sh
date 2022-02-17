@@ -2,7 +2,7 @@
 
 even_spread=true
 study_name=double_descent_study_v7
-for model_num in 94
+for model_num in 139 141
 do
 	if [ "$even_spread" = true ]
 	then

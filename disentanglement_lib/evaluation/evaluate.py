@@ -43,6 +43,7 @@ import tensorflow.compat.v1 as tf
 import tensorflow_hub as hub
 
 import gin.tf
+from absl import logging
 
 
 def evaluate_with_gin(model_dir,
@@ -113,9 +114,9 @@ def evaluate(model_dir,
     with gin.unlock_config():
       gin.bind_parameter("dataset.name", gin_dict["dataset.name"].replace(
           "'", ""))
-      gin.bind_parameter("dataset.train_with_full_dataset", gin_dict["dataset.train_with_full_dataset"])
-      gin.bind_parameter("dataset.split_method", gin_dict["dataset.split_method"])
-      gin.bind_parameter("dataset.num_training_data", gin_dict["dataset.num_training_data"])
+      gin.bind_parameter("dataset.train_with_full_dataset", gin_dict["dataset.train_with_full_dataset"].replace("'", ""))
+      gin.bind_parameter("dataset.split_method", gin_dict["dataset.split_method"].replace("'", ""))
+      gin.bind_parameter("dataset.num_training_data", gin_dict["dataset.num_training_data"].replace("'", ""))
 
   # load correlation gin config details
   if gin.query_parameter("correlation.active_correlation") == "auto":
@@ -132,11 +133,13 @@ def evaluate(model_dir,
           gin.bind_parameter("correlation_hyperparameter.line_width",
                              float(gin_dict["correlation_hyperparameter.line_width"].replace("'", "")))
 
-  if gin.query_parameter("dataset.train_with_full_dataset"):
+  if gin.query_parameter("dataset.train_with_full_dataset") == "True":
     dataset = named_data.get_named_ground_truth_data()
+    assert False
   else:
     assert gin.query_parameter("dataset.split_method") in ["train", "valid"]
     dataset = named_data.get_named_ground_truth_data()
+    logging.info(f"dataset subset name is {dataset.subset_name}")
 
   # Path to TFHub module of previously trained representation.
   module_path = os.path.join(model_dir, "tfhub")

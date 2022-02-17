@@ -18,6 +18,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import os
+from absl import logging
 from disentanglement_lib.data.ground_truth import ground_truth_data
 from disentanglement_lib.data.ground_truth import util
 import numpy as np
@@ -301,15 +302,16 @@ class SubsetDSprites(ground_truth_data.GroundTruthData):
       self.factor_sizes = np.array(
           data["metadata"][()]["latents_sizes"], dtype=np.int64)
     # load indices from dsprites directory
-    subset_name = split_method + str(int(num_training_data))
+    self.subset_name = split_method + str(int(num_training_data))
     dataset_indices_path = os.path.join(
       os.environ.get("DISENTANGLEMENT_LIB_DATA", "."), "dsprites",
-      f"{subset_name}.npy"
+      f"{self.subset_name}.npy"
     )
     try:
       self.dataset_indices = np.load(dataset_indices_path, allow_pickle=True)
+      logging.info(f"dataset indices has length {len(self.dataset_indices)}")
     except:
-      print("can't find path")
+      logging.info(f"can't find indices path at {dataset_indices_path}")
 
     self.full_factor_sizes = [1, 3, 6, 40, 32, 32]
     self.factor_names = ["shape", "scale", "orientation", "position x", "position y"]

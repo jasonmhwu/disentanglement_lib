@@ -14,8 +14,7 @@
 # limitations under the License.
 
 postprocess.postprocess_fn = @mean_representation
-dataset.name="dsprites_full"
-dataset.train_with_full_dataset = False
+dataset.name="auto"
 dataset.split_method = "train"
 correlation.active_correlation = "auto"
 postprocess.random_seed = 0

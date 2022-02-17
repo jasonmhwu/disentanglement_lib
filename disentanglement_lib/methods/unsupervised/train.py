@@ -97,7 +97,7 @@ def train(model_dir,
   # Create a numpy random state. We will sample the random seeds for training
   # and evaluation from this.
   random_state = np.random.RandomState(random_seed)
-  evaluate_every_n_steps = 10000
+  evaluate_every_n_steps = 50
 
   # We create a TPUEstimator based on the provided model. This is primarily so
   # that we could switch to TPU training in the future. For now, we train
@@ -120,7 +120,7 @@ def train(model_dir,
 
   # If split_method is all, train on entire dataset
   # else, train with same number of steps but evaluate dataset every 10k steps
-  if gin.query_parameter("dataset.train_with_full_dataset"):
+  if gin.query_parameter("dataset.train_with_full_dataset") == 'True':
       train_dataset = named_data.get_named_ground_truth_data()
       tpu_estimator.train(
           input_fn=_make_input_fn(train_dataset, random_state.randint(2 ** 32)),

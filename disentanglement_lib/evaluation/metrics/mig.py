@@ -50,6 +50,7 @@ def compute_mig(ground_truth_data,
   """
   del artifact_dir
   logging.info("Generating training set.")
+  logging.info(f"dataset subset  name: {ground_truth_data.subset_name}")
   mus_train, ys_train = utils.generate_batch_factor_code(
       ground_truth_data, representation_function, num_train,
       random_state, batch_size)
@@ -65,9 +66,6 @@ def _compute_mig(mus_train, ys_train):
   assert m.shape[0] == mus_train.shape[0]
   assert m.shape[1] == ys_train.shape[0]
   # m is [num_latents, num_factors]
-  logging.info(f"m shape is {m.shape}")
-  logging.info(f"mus_train shape is {mus_train.shape}")
-  logging.info(f"ys_train shape is {ys_train.shape}")
   entropy = utils.discrete_entropy(ys_train)
   sorted_m = np.sort(m, axis=0)[::-1]
   if sorted_m.shape[0] == 1:

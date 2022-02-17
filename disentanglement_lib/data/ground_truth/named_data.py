@@ -24,14 +24,15 @@ from disentanglement_lib.data.ground_truth import mpi3d
 from disentanglement_lib.data.ground_truth import norb
 from disentanglement_lib.data.ground_truth import shapes3d
 import gin.tf
+from absl import logging
 
 
 @gin.configurable("dataset")
 def get_named_ground_truth_data(
   name,
-  train_with_full_dataset=True,
+  num_training_data,
+  train_with_full_dataset='True',
   split_method='all',
-  num_training_data=700000
 ):
   """Returns ground truth data set based on name.
 
@@ -44,15 +45,20 @@ def get_named_ground_truth_data(
   Raises:
     ValueError: if an invalid data set name is provided.
   """
-  if (not train_with_full_dataset) and name == "dsprites_full":
+  logging.info(f"dataset.name: {name}")
+  logging.info(f"dataset.num_training_data: {num_training_data}")
+  logging.info(f"dataset.split_method: {split_method}")
+  logging.info(f"dataset.train_with_full_dataset: {train_with_full_dataset}")
+  if (train_with_full_dataset == 'False') and (name == "dsprites_full"):
     assert split_method in ['train', 'valid']
+    logging.info(f"dsprites subset has {num_training_data} data points.")
     return dsprites.SubsetDSprites(
       [1, 2, 3, 4, 5],
       split_method=split_method,
       num_training_data=num_training_data,
     )
 
-  assert train_with_full_dataset
+  assert train_with_full_dataset == 'True'
 
   if name == "dsprites_full":
     return dsprites.DSprites([1, 2, 3, 4, 5])

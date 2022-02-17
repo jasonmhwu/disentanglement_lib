@@ -34,6 +34,8 @@ from disentanglement_lib.config.double_descent_study_v5 import sweep as double_d
 from disentanglement_lib.config.double_descent_study_v6 import sweep as double_descent_study_v6
 from disentanglement_lib.config.double_descent_study_v7 import sweep as double_descent_study_v7
 from disentanglement_lib.config.double_descent_study_v8 import sweep as double_descent_study_v8
+from disentanglement_lib.config.double_descent_study_v9 import sweep as double_descent_study_v9
+from disentanglement_lib.config.double_descent_study_v10 import sweep as double_descent_study_v10
 
 STUDIES = {
     "unsupervised_study_v1": unsupervised_study_v1.UnsupervisedStudyV1(),
@@ -65,5 +67,9 @@ STUDIES = {
         double_descent_study_v7.DoubleDescentStudyV7(),
     "double_descent_study_v8":
         double_descent_study_v8.DoubleDescentStudyV8(),
+    "double_descent_study_v9":
+        double_descent_study_v9.DoubleDescentStudyV9(),
+    "double_descent_study_v10":
+        double_descent_study_v10.DoubleDescentStudyV10(),
     "test": tests.TestStudy(),
 }
