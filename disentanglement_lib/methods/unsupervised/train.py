@@ -146,7 +146,9 @@ def train(model_dir,
           results.update_result_directory(
               results_dir,
               "train" + str((num_iter+1) * evaluate_every_n_steps),
-              train_results_dict
+              train_results_dict,
+              create_config=False,
+              aggregate_json=False,
           )
           valid_results_dict = tpu_estimator.evaluate(
               input_fn=valid_input_fn,
@@ -155,7 +157,9 @@ def train(model_dir,
           results.update_result_directory(
               results_dir,
               "valid" + str((num_iter+1) * evaluate_every_n_steps),
-              valid_results_dict
+              valid_results_dict,
+              create_config=False,
+              aggregate_json=False,
           )
 
 
@@ -174,14 +178,26 @@ def train(model_dir,
           train_dataset, random_state.randint(2**32), num_batches=eval_steps
       )
   )
-  results.update_result_directory(results_dir, "train_final", train_results_dict)
+  results.update_result_directory(
+      results_dir,
+      "train_final",
+      train_results_dict,
+      create_config=False,
+      aggregate_json=False,
+  )
   valid_results_dict = tpu_estimator.evaluate(
       input_fn=_make_input_fn(
           valid_dataset, random_state.randint(2**32), num_batches=eval_steps
       )
   )
   valid_results_dict["elapsed_time"] = time.time() - experiment_timer
-  results.update_result_directory(results_dir, "valid_final", valid_results_dict)
+  results.update_result_directory(
+      results_dir,
+      "valid_final",
+      valid_results_dict,
+      create_config=True,
+      aggregate_json=True,
+  )
 
 
 def _make_input_fn(ground_truth_data, seed, num_batches=None):

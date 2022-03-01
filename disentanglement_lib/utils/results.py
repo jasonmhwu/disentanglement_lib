@@ -32,6 +32,8 @@ import gin.tf
 def update_result_directory(result_directory,
                             step_name,
                             results_dict,
+                            create_config=False,
+                            aggregate_json=False,
                             old_result_directory=None):
   """One stop solution for updating the result directory.
 
@@ -64,13 +66,14 @@ def update_result_directory(result_directory,
   results_dict["uuid"] = str(uuid.uuid4())
 
   # Save the gin config in the gin format.
-  gin_config_path = os.path.join(result_directory, "gin",
+  if create_config:
+    gin_config_path = os.path.join(result_directory, "gin",
                                  "{}.gin".format(step_name))
-  save_gin(gin_config_path)
+    save_gin(gin_config_path)
 
-  # Save gin config in JSON file for aggregation.
-  gin_json_path = os.path.join(json_dir, "{}_config.json".format(step_name))
-  save_dict(gin_json_path, gin_dict(gin_config_path))
+    # Save gin config in JSON file for aggregation.
+    gin_json_path = os.path.join(json_dir, "{}_config.json".format(step_name))
+    save_dict(gin_json_path, gin_dict(gin_config_path))
 
   # Save the results as a dictionary in JSON.
   results_json_path = os.path.join(json_dir,
@@ -78,10 +81,11 @@ def update_result_directory(result_directory,
   save_dict(results_json_path, results_dict)
 
   # Aggregate all the results present in the result_dir so far.
-  aggregate_dict = aggregate_json_results(json_dir)
-  aggregate_json_path = results_json_path = os.path.join(
-      result_directory, "aggregate", "{}.json".format(step_name))
-  save_dict(aggregate_json_path, aggregate_dict)
+  if aggregate_json:
+    aggregate_dict = aggregate_json_results(json_dir)
+    aggregate_json_path = results_json_path = os.path.join(
+        result_directory, "aggregate", "{}.json".format(step_name))
+    save_dict(aggregate_json_path, aggregate_dict)
 
 
 def _copy_recursively(path_to_old_dir, path_to_new_dir):

@@ -99,18 +99,18 @@ def postprocess(model_dir,
   if gin.query_parameter("dataset.name") == "auto":
     logging.info("retrieve dataset information from previous gin file")
     # Obtain the dataset name from the gin config of the previous step.
-    gin_config_file = os.path.join(model_dir, "results", "gin", "train_final.gin")
+    gin_config_file = os.path.join(model_dir, "results", "gin", "valid_final.gin")
     gin_dict = results.gin_dict(gin_config_file)
     with gin.unlock_config():
       gin.bind_parameter("dataset.name", gin_dict["dataset.name"].replace(
           "'", ""))
-      gin.bind_parameter("dataset.num_training_data", gin_dict["dataset.num_training_data"])
+      gin.bind_parameter("dataset.num_training_data", int(gin_dict["dataset.num_training_data"].replace("'", "")))
       gin.bind_parameter("dataset.train_with_full_dataset", gin_dict["dataset.train_with_full_dataset"].replace("'", ""))
       logging.info(f"dataset.num_training_data is {gin.query_parameter('dataset.num_training_data')}")
       logging.info(f"dataset.train_with_full_dataset is {gin.query_parameter('dataset.train_with_full_dataset')}")
   if gin.query_parameter("correlation.active_correlation") == "auto":
     # Obtain the correlation parameters from the gin config of the previous step.
-    gin_config_file = os.path.join(model_dir, "results", "gin", "train_final.gin")
+    gin_config_file = os.path.join(model_dir, "results", "gin", "valid_final.gin")
     gin_dict = results.gin_dict(gin_config_file)
     with gin.unlock_config():
       gin.bind_parameter("correlation.active_correlation", bool(gin_dict["correlation.active_correlation"] == "True"))
@@ -163,4 +163,5 @@ def postprocess(model_dir,
   results_dir = os.path.join(output_dir, "results")
   results_dict = dict(elapsed_time=time.time() - experiment_timer)
   results.update_result_directory(results_dir, "postprocess", results_dict,
-                                  original_results_dir)
+                                  old_result_directory=original_results_dir,
+                                  create_config=True, aggregate_json=True)
