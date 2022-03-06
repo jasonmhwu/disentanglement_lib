@@ -20,10 +20,13 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import sys
+sys.path.append(os.path.abspath("/home/mwu34/disentanglement_lib"))
 
 from absl import app
 from absl import flags
 from absl import logging
+from disentanglement_lib.config import reproduce
 from disentanglement_lib.evaluation import evaluate
 from disentanglement_lib.methods.semi_supervised import train_semi_supervised_lib
 from disentanglement_lib.postprocessing import postprocess
@@ -34,179 +37,114 @@ from disentanglement_lib.visualize import visualize_model
 import numpy as np
 from tensorflow.compat.v1 import gfile
 
-FLAGS = flags.FLAGS
 
+
+
+FLAGS = flags.FLAGS
+flags.DEFINE_string("study", "active_learning_study", "Name of the study.")
 flags.DEFINE_string("output_directory", None,
                     "Output directory of experiments.")
 
 # Model flags. If the model_dir flag is set, then that directory is used and
 # training is skipped.
 flags.DEFINE_string("model_dir", None, "Directory to take trained model from.")
+flags.DEFINE_integer("model_num", 0, "Integer with model number to train.")
 # Otherwise, the model is trained using the gin bindings and the gin model
 # config file in the gin model config folder.
-flags.DEFINE_multi_string("gin_bindings", [],
-                          "Newline separated list of Gin parameter bindings.")
-flags.DEFINE_string("gin_model_config_dir", None,
-                    "Path to directory with model configs.")
-flags.DEFINE_string("gin_model_config_name", None,
-                    "Filename of the model config.")
 
-# Postprocessing and evaluation is done using glob patterns of gin configs.
-flags.DEFINE_string("gin_postprocess_config_glob", None,
-                    "Path to glob pattern to evaluation configs.")
-flags.DEFINE_string("gin_evaluation_config_glob", None,
-                    "Path to glob pattern to evaluation configs.")
-flags.DEFINE_string("gin_validation_config_glob", None,
-                    "Path to glob pattern to validation configs.")
-# Other flags.
-flags.DEFINE_integer("pipeline_seed", None,
-                     "Integer with random seed for the whole pipeline.")
-flags.DEFINE_integer("eval_seed", None,
-                     "Integer with random seed for the evaluation pipeline.")
 flags.DEFINE_boolean("overwrite", False,
                      "Whether to overwrite output directory.")
-
-# Experiment flags.
-flags.DEFINE_integer("supervised_seed", None,
-                     "Integer with random seed for the supervised data.")
-flags.DEFINE_integer("num_labelled_samples", None,
-                     "Integer with random seed for whole pipeline.")
-flags.DEFINE_float("train_percentage", None,
-                   "Integer with random seed for whole pipeline.")
-flags.DEFINE_string("labeller_fn", None,
-                    "Labeller function for the supervised data.")
+flags.DEFINE_boolean("only_print", False,
+                     "Whether to only print the hyperparameter settings.")
+flags.DEFINE_boolean("only_train", False,
+                     "Whether to only train the model.")
 
 
 def main(unused_argv):
-  # In this pipeline, we manually manage the random seeds of the different steps
-  # as otherwise different training runs of the model (with different random
-  # seeds) would be evaluated on exactly the same data (i.e., there would be no
-  # randomness in evaluation). We use the random seed in the flag to seed a
-  # random number generator from which random seeds for the different parts of
-  # the pipeline are drawn. In addition, we have a fixed seed for the
-  # supervision. This ensures that the supervised data is the same across
-  # different models and in different validation metrics.
-  random_state = np.random.RandomState(FLAGS.pipeline_seed)
+  study = reproduce.STUDIES[FLAGS.study]
 
-  # Model training (if the model_dir is not provided.).
+  print(f"argv: {unused_argv}")
+  print(f"model_dir is {FLAGS.model_dir}")
+  # Print the hyperparameter settings.
+  if FLAGS.model_dir is None:
+    study.print_model_config(FLAGS.model_num)
+  else:
+    print("Model directory (skipped training):")
+    print("--")
+    print(FLAGS.model_dir)
+  print()
+  study.print_postprocess_config()
+  print()
+  study.print_eval_config()
+  if FLAGS.only_print:
+    return
 
-  # It is important that we sample the model random seed regardless whether
-  # we actually train the model so later seeds are the same.
+  # Set correct output directory.
+  if FLAGS.output_directory is None:
+    if FLAGS.model_dir is None:
+      output_directory = os.path.join("output", "{study}", "{model_num}")
+    else:
+      output_directory = "output"
+  else:
+    output_directory = FLAGS.output_directory
 
-  model_random_seed = random_state.randint(2**32)
-  unsupervised_data_seed = random_state.randint(2**32)
+  # Insert model number and study name into path if necessary.
+  output_directory = output_directory.format(model_num=str(FLAGS.model_num),
+                                             study=str(FLAGS.study))
+
+  # Start model training
   if FLAGS.model_dir is None:
     logging.info("Training model...")
+    model_bindings, model_config_file = study.get_model_config(FLAGS.model_num)
     model_dir = os.path.join(FLAGS.output_directory, "model")
-    model_config_file = os.path.join(FLAGS.gin_model_config_dir,
-                                     FLAGS.gin_model_config_name)
     model_bindings = [
-        "model.model_seed = {}".format(model_random_seed),
-        "model.unsupervised_data_seed = {}".format(unsupervised_data_seed),
-        "model.name = '{}'".format(FLAGS.gin_model_config_name).replace(
+        "model.name = '{}'".format(os.path.basename(model_config_file)).replace(
             ".gin", ""),
-        "model.supervised_data_seed = {}".format(FLAGS.supervised_seed),
-        "model.num_labelled_samples = {}".format(FLAGS.num_labelled_samples),
-        "model.train_percentage = {}".format(FLAGS.train_percentage),
-        "labeller.labeller_fn = {}".format(FLAGS.labeller_fn)
-    ] + FLAGS.gin_bindings
+        "model.model_num = {}".format(FLAGS.model_num),
+    ] + model_bindings
     train_semi_supervised_lib.train_with_gin(
         model_dir,
         overwrite=FLAGS.overwrite,
         gin_config_files=[model_config_file],
         gin_bindings=model_bindings)
-    supervised_seed = FLAGS.supervised_seed
-    num_labelled_samples = FLAGS.num_labelled_samples
-    train_percentage = FLAGS.train_percentage
-    labeller_fn = FLAGS.labeller_fn
   else:
     logging.info("Skipped training...")
-    model_dir = os.path.join(FLAGS.model_dir, "model")
-    # Automatically set the proper parameters for the supervised data. We load
-    # the parameters that were used in the training step so that they will be
-    # identical in the validation step.
-    if FLAGS.supervised_seed is not None:
-      raise ValueError(
-          "The supervised_seed flag should not be specified when re-evaluating."
-      )
-    if FLAGS.num_labelled_samples is not None:
-      raise ValueError(
-          "The num_labelled_samples flag should not be specified when "
-          "re-evaluating."
-      )
-    if FLAGS.train_percentage is not None:
-      raise ValueError(
-          "The train_percentage flag should not be specified when "
-          "re-evaluating."
-      )
-    if FLAGS.labeller_fn is not None:
-      raise ValueError(
-          "The labeller_fn flag should not be specified when re-evaluating.")
-    gin_config_file = os.path.join(model_dir, "results", "gin", "train.gin")
-    gin_dict = results.gin_dict(gin_config_file)
-    supervised_seed = gin_dict["model.supervised_data_seed"]
-    num_labelled_samples = gin_dict["model.num_labelled_samples"]
-    train_percentage = gin_dict["model.train_percentage"]
-    labeller_fn = gin_dict["labeller.labeller_fn"]
+    model_dir = FLAGS.model_dir
 
+  if FLAGS.only_train:
+    return
   # We visualize reconstruction, samples and latent space traversal.
-  visualize_dir = os.path.join(FLAGS.output_directory, "visualizations")
-  visualize_model.visualize(model_dir, visualize_dir, FLAGS.overwrite)
+  # visualize_dir = os.path.join(FLAGS.output_directory, "visualizations")
+  # visualize_model.visualize(model_dir, visualize_dir, FLAGS.overwrite)
 
   # We extract the different representations and save them to disk.
-  evaluation_configs = sorted(gfile.Glob(FLAGS.gin_postprocess_config_glob))
-  for config in evaluation_configs:
+  postprocess_config_files = sorted(study.get_postprocess_config_files())
+  for config in postprocess_config_files:
     post_name = os.path.basename(config).replace(".gin", "")
     logging.info("Extracting representation %s...", post_name)
     post_dir = os.path.join(FLAGS.output_directory, "postprocessed", post_name)
     postprocess_bindings = [
-        "postprocess.random_seed = {}".format(random_state.randint(2**32)),
         "postprocess.name = '{}'".format(post_name)
     ]
     postprocess.postprocess_with_gin(model_dir, post_dir, FLAGS.overwrite,
                                      [config], postprocess_bindings)
-  # Iterate through metrics for validation.
-  validation_configs = sorted(gfile.Glob(FLAGS.gin_validation_config_glob))
-  for config in evaluation_configs:
-
-    post_name = os.path.basename(config).replace(".gin", "")
-    post_dir = os.path.join(FLAGS.output_directory, "postprocessed", post_name)
-    # Now, we compute all the specified scores.
-    for gin_eval_config in validation_configs:
-      metric_name = os.path.basename(gin_eval_config).replace(".gin", "")
-      metric_bindings = []
-      metric_name = metric_name + "_validation"
-      if metric_name != "mig_validation":
-        metric_bindings += [
-            "{}.train_percentage = {}".format(metric_name,
-                                              train_percentage)
-        ]
-      metric_name = "{}_{}_{}".format(metric_name, supervised_seed,
-                                      num_labelled_samples)
-      logging.info("Computing metric '%s' on '%s'...", metric_name, post_name)
-      metric_dir = os.path.join(FLAGS.output_directory, "validation", post_name,
-                                metric_name)
-      metric_bindings += [
-          "validation.random_seed = {}".format(supervised_seed),
-          "validation.name = '{}'".format(metric_name),
-          "validation.num_labelled_samples = {}".format(
-              num_labelled_samples),
-          "labeller.labeller_fn = {}".format(labeller_fn)
-      ]
-      validate.validate_with_gin(post_dir, metric_dir, FLAGS.overwrite,
-                                 [gin_eval_config], metric_bindings)
-  # Set the random state for the evaluation.
-  random_state_eval = np.random.RandomState(FLAGS.eval_seed)
+  
+  # Note here that there is supposed to be a validation step for semi-supervised methods.
+    
+  # We fix the random seed for the postprocessing and evaluation steps (each
+  # config gets a different but reproducible seed derived from a master seed of
+  # 0). The model seed was set via the gin bindings and configs of the study.
+  random_state_eval = np.random.RandomState(0)
+  
   # Iterate through metrics for test.
-  metric_configs = sorted(gfile.Glob(FLAGS.gin_evaluation_config_glob))
-  for config in evaluation_configs:
+  eval_configs = sorted(study.get_eval_config_files())
+  for config in postprocess_config_files:
     post_name = os.path.basename(config).replace(".gin", "")
     post_dir = os.path.join(FLAGS.output_directory, "postprocessed",
                             post_name)
-    # Now, we compute all the specified scores.
-    for gin_eval_config in metric_configs:
+    # Now, we compute all the specified disentanglement  scores.
+    for gin_eval_config in eval_configs:
       metric_name = os.path.basename(gin_eval_config).replace(".gin", "")
-      metric_name = "{}_{}".format(metric_name, supervised_seed)
       logging.info("Computing metric '%s' on '%s'...", metric_name, post_name)
       metric_dir = os.path.join(FLAGS.output_directory, "metrics", post_name,
                                 metric_name)
@@ -217,12 +155,6 @@ def main(unused_argv):
       ]
       evaluate.evaluate_with_gin(post_dir, metric_dir, FLAGS.overwrite,
                                  [gin_eval_config], eval_bindings)
-  # Aggregate all the results in a single json file per model.
-  result_dir = os.path.join(FLAGS.output_directory, "metrics",
-                            "aggregated_results.json")
-  pattern = os.path.join(FLAGS.output_directory,
-                         "metrics/*/*/results/aggregate/evaluation.json")
-  aggregate_results.aggregate_results_to_json(pattern, result_dir)
 
 
 if __name__ == "__main__":

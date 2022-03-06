@@ -99,7 +99,7 @@ def postprocess(model_dir,
   if gin.query_parameter("dataset.name") == "auto":
     logging.info("retrieve dataset information from previous gin file")
     # Obtain the dataset name from the gin config of the previous step.
-    gin_config_file = os.path.join(model_dir, "results", "gin", "valid_final.gin")
+    gin_config_file = os.path.join(model_dir, "results", "gin", "train_final.gin")
     gin_dict = results.gin_dict(gin_config_file)
     with gin.unlock_config():
       gin.bind_parameter("dataset.name", gin_dict["dataset.name"].replace(
@@ -110,7 +110,7 @@ def postprocess(model_dir,
       logging.info(f"dataset.train_with_full_dataset is {gin.query_parameter('dataset.train_with_full_dataset')}")
   if gin.query_parameter("correlation.active_correlation") == "auto":
     # Obtain the correlation parameters from the gin config of the previous step.
-    gin_config_file = os.path.join(model_dir, "results", "gin", "valid_final.gin")
+    gin_config_file = os.path.join(model_dir, "results", "gin", "train_final.gin")
     gin_dict = results.gin_dict(gin_config_file)
     with gin.unlock_config():
       gin.bind_parameter("correlation.active_correlation", bool(gin_dict["correlation.active_correlation"] == "True"))
@@ -125,7 +125,6 @@ def postprocess(model_dir,
 
   if gin.query_parameter("dataset.train_with_full_dataset") == 'True':
     dataset = named_data.get_named_ground_truth_data()
-    assert False
   else:  # query either the train or validation dataset
     assert gin.query_parameter("dataset.split_method") in ['train', 'valid']
     dataset = named_data.get_named_ground_truth_data()

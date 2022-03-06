@@ -27,15 +27,17 @@ from disentanglement_lib.config.correlated_factors_study_ws_od import sweep as c
 from disentanglement_lib.config.correlated_factors_study_ws_id1 import sweep as correlated_factors_study_ws_id1
 from disentanglement_lib.config.correlated_factors_study_ws_id2 import sweep as correlated_factors_study_ws_id2
 from disentanglement_lib.config.double_descent_study import sweep as double_descent_study
-from disentanglement_lib.config.double_descent_study_v2 import sweep as double_descent_study_v2
-from disentanglement_lib.config.double_descent_study_v3 import sweep as double_descent_study_v3
-from disentanglement_lib.config.double_descent_study_v4 import sweep as double_descent_study_v4
-from disentanglement_lib.config.double_descent_study_v5 import sweep as double_descent_study_v5
-from disentanglement_lib.config.double_descent_study_v6 import sweep as double_descent_study_v6
-from disentanglement_lib.config.double_descent_study_v7 import sweep as double_descent_study_v7
-from disentanglement_lib.config.double_descent_study_v8 import sweep as double_descent_study_v8
-from disentanglement_lib.config.double_descent_study_v9 import sweep as double_descent_study_v9
-from disentanglement_lib.config.double_descent_study_v10 import sweep as double_descent_study_v10
+# from disentanglement_lib.config.double_descent_study_v2 import sweep as double_descent_study_v2
+# from disentanglement_lib.config.double_descent_study_v3 import sweep as double_descent_study_v3
+# from disentanglement_lib.config.double_descent_study_v4 import sweep as double_descent_study_v4
+# from disentanglement_lib.config.double_descent_study_v5 import sweep as double_descent_study_v5
+# from disentanglement_lib.config.double_descent_study_v6 import sweep as double_descent_study_v6
+# from disentanglement_lib.config.double_descent_study_v7 import sweep as double_descent_study_v7
+# from disentanglement_lib.config.double_descent_study_v8 import sweep as double_descent_study_v8
+# from disentanglement_lib.config.double_descent_study_v9 import sweep as double_descent_study_v9
+# from disentanglement_lib.config.double_descent_study_v10 import sweep as double_descent_study_v10
+
+from disentanglement_lib.config.active_learning_study_v1 import sweep as active_learning_study_v1
 
 STUDIES = {
     "unsupervised_study_v1": unsupervised_study_v1.UnsupervisedStudyV1(),
@@ -53,23 +55,6 @@ STUDIES = {
         correlated_factors_study_ws_id2.CorrelatedFactorsStudyWSID2(),
     "double_descent_study":
         double_descent_study.DoubleDescentStudy(),
-    "double_descent_study_v2":
-        double_descent_study_v2.DoubleDescentStudyV2(),
-    "double_descent_study_v3":
-        double_descent_study_v3.DoubleDescentStudyV3(),
-    "double_descent_study_v4":
-        double_descent_study_v4.DoubleDescentStudyV4(),
-    "double_descent_study_v5":
-        double_descent_study_v5.DoubleDescentStudyV5(),
-    "double_descent_study_v6":
-        double_descent_study_v6.DoubleDescentStudyV6(),
-    "double_descent_study_v7":
-        double_descent_study_v7.DoubleDescentStudyV7(),
-    "double_descent_study_v8":
-        double_descent_study_v8.DoubleDescentStudyV8(),
-    "double_descent_study_v9":
-        double_descent_study_v9.DoubleDescentStudyV9(),
-    "double_descent_study_v10":
-        double_descent_study_v10.DoubleDescentStudyV10(),
     "test": tests.TestStudy(),
+    "active_learning_study_v1": active_learning_study_v1.ActiveLearningStudyV1(),
 }

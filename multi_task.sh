@@ -1,8 +1,18 @@
 #!/bin/bash
 
 even_spread=true
-study_name=double_descent_study_v10
-for model_num in {10..19}
+study_name=active_learning_study_v1
+pipeline_name=dlib_reproduce_semi_supervised
+only_train=true
+
+if [ "$only_train" = true ]
+then
+	only_train_flag=--only_train
+else
+	only_train_flag=''
+fi
+
+for model_num in {24..35}
 do
 	if [ "$even_spread" = true ]
 	then
@@ -10,7 +20,7 @@ do
 		eval \$(conda shell.bash hook);
 		conda activate tf1.5; 
 		cd /home/mwu34/disentanglement_lib;
-		CUDA_VISIBLE_DEVICES=$((model_num % 2)) python bin/dlib_reproduce --model_num=$model_num --study=$study_name --output_directory=output_$study_name/$model_num;
+		CUDA_VISIBLE_DEVICES=$((model_num % 2)) python bin/$pipeline_name --model_num=$model_num --study=$study_name --output_directory=output_$study_name/$model_num $only_train_flag;
 		exit;
 	"
 	else
@@ -18,7 +28,7 @@ do
 		eval \$(conda shell.bash hook);
 		conda activate tf1.5; 
 		cd /home/mwu34/disentanglement_lib;
-		CUDA_VISIBLE_DEVICES=0 python bin/dlib_reproduce --model_num=$model_num --study=$study_name --output_directory=output_$study_name/$model_num;
+		CUDA_VISIBLE_DEVICES=0 python bin/$pipeline_name --model_num=$model_num --study=$study_name --output_directory=output_$study_name/$model_num $only_train_flag;
 		exit;
 	"
 	fi

@@ -18,9 +18,11 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+from absl import logging
 
 import os
 import time
+import pdb
 
 from disentanglement_lib.data.ground_truth import named_data
 from disentanglement_lib.methods.semi_supervised import semi_supervised_utils  # pylint: disable=unused-import
@@ -55,7 +57,10 @@ def train_with_gin(model_dir,
     gin_config_files = []
   if gin_bindings is None:
     gin_bindings = []
+  gin_bindings = gin_bindings + ["s2_vae.factor_sizes = (3, 6, 40, 32, 32)"]
   gin.parse_config_files_and_bindings(gin_config_files, gin_bindings)
+  if gin.query_parameter("dataset.name") !=  "dsprites_full":
+      raise ValueError("S2_beta_VAE isn't configured to train on other datasets yet.")
   train(model_dir, overwrite)
   gin.clear_config()
 
@@ -71,7 +76,9 @@ def train(model_dir,
           batch_size=gin.REQUIRED,
           num_labelled_samples=gin.REQUIRED,
           train_percentage=gin.REQUIRED,
-          name=""):
+          name="",
+          model_num=None,
+          ):
   """Trains the estimator and exports the snapshot and the gin config.
 
   The use of this function requires the gin binding 'dataset.name' to be
@@ -94,7 +101,7 @@ def train(model_dir,
   """
   # We do not use the variable 'name'. Instead, it can be used to name results
   # as it will be part of the saved gin config.
-  del name
+  del name, model_num
 
   # Delete the output directory if necessary.
   if tf.gfile.IsDirectory(model_dir):
@@ -102,18 +109,22 @@ def train(model_dir,
       tf.gfile.DeleteRecursively(model_dir)
     else:
       raise ValueError("Directory already exists and overwrite is False.")
-
   # Obtain the dataset.
   dataset = named_data.get_named_ground_truth_data()
   (sampled_observations,
    sampled_factors,
    factor_sizes) = semi_supervised_utils.sample_supervised_data(
        supervised_data_seed, dataset, num_labelled_samples)
+  logging.info(f"factor_sizes is {factor_sizes}")
+  logging.info(f"sampled_factors shape is {sampled_factors.shape}")
+  logging.info(f"sampled_observations shape is {sampled_observations.shape}")
+
   # We instantiate the model class.
-  if  issubclass(model, semi_supervised_vae.BaseS2VAE):
-    model = model(factor_sizes)
-  else:
-    model = model()
+  # if gin.query_parameter("model.name") == "s2_beta_vae":
+  #   model = model()
+  # else:
+  #   assert False
+  #   model = model()
 
   # We create a TPUEstimator based on the provided model. This is primarily so
   # that we could switch to TPU training in the future. For now, we train
@@ -121,11 +132,12 @@ def train(model_dir,
   run_config = tpu_config.RunConfig(
       tf_random_seed=model_seed,
       keep_checkpoint_max=1,
+      save_checkpoints_steps=10000,
       tpu_config=tpu_config.TPUConfig(iterations_per_loop=500))
   tpu_estimator = TPUEstimator(
       use_tpu=False,
       model_fn=model.model_fn,
-      model_dir=model_dir,
+      model_dir=os.path.join(model_dir, "tf_checkpoint"),
       train_batch_size=batch_size,
       eval_batch_size=batch_size,
       config=run_config)
@@ -160,7 +172,12 @@ def train(model_dir,
           validation=True))
   results_dir = os.path.join(model_dir, "results")
   results_dict["elapsed_time"] = time.time() - experiment_timer
-  results.update_result_directory(results_dir, "train", results_dict)
+  results.update_result_directory(
+          results_dir,
+          "train_final",
+          results_dict,
+          create_config=True,
+          aggregate_json=True)
 
 
 def _make_input_fn(ground_truth_data,

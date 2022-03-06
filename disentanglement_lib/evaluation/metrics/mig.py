@@ -50,7 +50,6 @@ def compute_mig(ground_truth_data,
   """
   del artifact_dir
   logging.info("Generating training set.")
-  logging.info(f"dataset subset  name: {ground_truth_data.subset_name}")
   mus_train, ys_train = utils.generate_batch_factor_code(
       ground_truth_data, representation_function, num_train,
       random_state, batch_size)

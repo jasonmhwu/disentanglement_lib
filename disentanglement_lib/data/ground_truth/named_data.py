@@ -46,8 +46,6 @@ def get_named_ground_truth_data(
     ValueError: if an invalid data set name is provided.
   """
   logging.info(f"dataset.name: {name}")
-  logging.info(f"dataset.num_training_data: {num_training_data}")
-  logging.info(f"dataset.split_method: {split_method}")
   logging.info(f"dataset.train_with_full_dataset: {train_with_full_dataset}")
   if (train_with_full_dataset == 'False') and (name == "dsprites_full"):
     assert split_method in ['train', 'valid']
