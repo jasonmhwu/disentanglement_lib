@@ -19,6 +19,8 @@ from __future__ import division
 from __future__ import print_function
 
 import math
+import os
+import pickle
 import numpy as np
 
 import gin.tf.external_configurables  # pylint: disable=unused-import
@@ -51,6 +53,44 @@ def sample_supervised_data(supervised_seed,
                                                 ground_truth_data,
                                                 supervised_random_state)
   return sampled_observations, sampled_factors, factor_sizes
+
+
+def load_supervised_data(supervised_seed,
+                         ground_truth_data,
+                         num_labelled_samples,
+                         supervised_selection_criterion):
+  """Load data and queries the labeller to obtain labels.
+
+  Args:
+    supervised_seed: Seed for the supervised data. Fixing the seed ensures that
+      the same data is sampled across different parts of the pipeline.
+    ground_truth_data: Dataset class from which the data is to be sampled.
+    num_labelled_samples: How many labelled points should be sampled.
+    supervised_selection_criterion: Criterion that the data points are selected from
+  
+  Returns:
+    sampled_observations: Numpy array with observations of shape
+      (num_labelled_samples, 64, 64, num_channels).
+    sampled_factors: Numpy array with observed factors of variations with shape
+      (num_labelled_samples, num_factors).
+  """
+  supervised_random_state = np.random.RandomState(supervised_seed)
+  pickle_path = os.path.join(
+    os.environ.get("DISENTANGLEMENT_LIB_DATA", "."),
+    "dsprites", f"{supervised_selection_criterion}_{num_labelled_samples}.pickle"
+  )
+  try:
+        with open(pickle_path, 'rb') as handle:
+            data_points_dict = pickle.load(handle)
+        sampled_indices = data_points_dict['informative_indices']
+        sampled_factors = data_points_dict['informative_factors']
+        sampled_observations = np.expand_dims(ground_truth_data.images[sampled_indices], 3)
+        sampled_factors, factor_sizes = make_labeller(sampled_factors,
+                                                ground_truth_data,
+                                                supervised_random_state)
+        return sampled_observations, sampled_factors, factor_sizes
+  except:
+        raise ValueError(f"can't find pickle file at {pickle_path}")
 
 
 def train_test_split(observations, labels, num_labelled_samples,

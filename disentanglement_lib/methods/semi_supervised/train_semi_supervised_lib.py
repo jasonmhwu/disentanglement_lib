@@ -22,6 +22,7 @@ from absl import logging
 
 import os
 import time
+import pickle
 import pdb
 
 from disentanglement_lib.data.ground_truth import named_data
@@ -76,6 +77,7 @@ def train(model_dir,
           batch_size=gin.REQUIRED,
           num_labelled_samples=gin.REQUIRED,
           train_percentage=gin.REQUIRED,
+          supervised_selection_criterion=gin.REQUIRED,
           name="",
           model_num=None,
           ):
@@ -97,6 +99,7 @@ def train(model_dir,
     num_labelled_samples: Integer with number of labelled observations for
       training.
     train_percentage: Fraction of the labelled data to use for training (0,1)
+    supervised_selection_criterion: String about how supervised data are selected.
     name: Optional string with name of the model (can be used to name models).
   """
   # We do not use the variable 'name'. Instead, it can be used to name results
@@ -111,10 +114,17 @@ def train(model_dir,
       raise ValueError("Directory already exists and overwrite is False.")
   # Obtain the dataset.
   dataset = named_data.get_named_ground_truth_data()
-  (sampled_observations,
-   sampled_factors,
-   factor_sizes) = semi_supervised_utils.sample_supervised_data(
-       supervised_data_seed, dataset, num_labelled_samples)
+  if supervised_selection_criterion == 'random':
+    (sampled_observations,
+     sampled_factors,
+     factor_sizes) = semi_supervised_utils.sample_supervised_data(
+         supervised_data_seed, dataset, num_labelled_samples)
+  else:
+    (sampled_observations,
+     sampled_factors,
+     factor_sizes) = semi_supervised_utils.load_supervised_data(
+         supervised_data_seed, dataset, num_labelled_samples, supervised_selection_criterion)
+    logging.info(f"supervised_data selected from criterion {supervised_selection_criterion}")
   logging.info(f"factor_sizes is {factor_sizes}")
   logging.info(f"sampled_factors shape is {sampled_factors.shape}")
   logging.info(f"sampled_observations shape is {sampled_observations.shape}")
