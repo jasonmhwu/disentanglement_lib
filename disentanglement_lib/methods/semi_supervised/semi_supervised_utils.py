@@ -77,13 +77,13 @@ def load_supervised_data(supervised_seed,
   supervised_random_state = np.random.RandomState(supervised_seed)
   pickle_path = os.path.join(
     os.environ.get("DISENTANGLEMENT_LIB_DATA", "."),
-    "dsprites", f"{supervised_selection_criterion}_{num_labelled_samples}.pickle"
+    "dsprites", f"{supervised_selection_criterion}.pickle"
   )
   try:
         with open(pickle_path, 'rb') as handle:
             data_points_dict = pickle.load(handle)
-        sampled_indices = data_points_dict['informative_indices']
-        sampled_factors = data_points_dict['informative_factors']
+        sampled_indices = data_points_dict['informative_indices'][:num_labelled_samples]
+        sampled_factors = data_points_dict['informative_factors'][:num_labelled_samples]
         sampled_observations = np.expand_dims(ground_truth_data.images[sampled_indices], 3)
         sampled_factors, factor_sizes = make_labeller(sampled_factors,
                                                 ground_truth_data,

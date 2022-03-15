@@ -119,27 +119,30 @@ def train(model_dir,
       raise ValueError("Directory already exists and overwrite is False.")
   # Obtain the dataset.
   dataset = named_data.get_named_ground_truth_data()
-  if supervised_selection_criterion == 'random':
-    (sampled_observations,
-     sampled_factors,
-     factor_sizes) = semi_supervised_utils.sample_supervised_data(
-         supervised_data_seed, dataset, num_labelled_samples)
-  else:
-    (sampled_observations,
-     sampled_factors,
-     factor_sizes) = semi_supervised_utils.load_supervised_data(
-         supervised_data_seed, dataset, num_labelled_samples, supervised_selection_criterion)
-    logging.info(f"supervised_data selected from criterion {supervised_selection_criterion}")
+  if isinstance(supervised_selection_criterion, str):
+      supervised_selection_criterion = [supervised_selection_criterion]
+  num_criteria = len(supervised_selection_criterion)
+  labelled_observations, labelled_factors = [0] * num_criteria, [0] * num_criteria
+  for idx, criteria in enumerate(supervised_selection_criterion):
+    points_per_criterion = num_labelled_samples // num_criteria
+    if idx == num_criteria - 1:
+      points_per_criterion += (num_labelled_samples % num_criteria)
+    if criteria == 'random':
+      (labelled_observations[idx],
+       labelled_factors[idx],
+       factor_sizes) = semi_supervised_utils.sample_supervised_data(
+           supervised_data_seed, dataset, points_per_criterion)
+    else:
+      (labelled_observations[idx],
+       labelled_factors[idx],
+       factor_sizes) = semi_supervised_utils.load_supervised_data(
+           supervised_data_seed, dataset, points_per_criterion, criteria)
+    logging.info(f"{points_per_criterion} points selected from criterion {criteria}")
+  labelled_observations = np.concatenate(labelled_observations, 0)
+  labelled_factors = np.concatenate(labelled_factors, 0)
   logging.info(f"factor_sizes is {factor_sizes}")
-  logging.info(f"sampled_factors shape is {sampled_factors.shape}")
-  logging.info(f"sampled_observations shape is {sampled_observations.shape}")
-
-  # We instantiate the model class.
-  # if gin.query_parameter("model.name") == "s2_beta_vae":
-  #   model = model()
-  # else:
-  #   assert False
-  #   model = model()
+  logging.info(f"labelled_factors shape is {labelled_factors.shape}")
+  logging.info(f"labelled_observations shape is {labelled_observations.shape}")
 
   # We create a TPUEstimator based on the provided model. This is primarily so
   # that we could switch to TPU training in the future. For now, we train
@@ -162,8 +165,8 @@ def train(model_dir,
   # Do the actual training.
   tpu_estimator.train(
       input_fn=_make_input_fn(dataset, num_labelled_samples,
-                              unsupervised_data_seed, sampled_observations,
-                              sampled_factors, train_percentage),
+                              unsupervised_data_seed, labelled_observations,
+                              labelled_factors, train_percentage),
       steps=training_steps)
   # Save model as a TFHub module.
   output_shape = named_data.get_named_ground_truth_data().observation_shape
@@ -180,8 +183,8 @@ def train(model_dir,
           dataset,
           num_labelled_samples,
           unsupervised_data_seed,
-          sampled_observations,
-          sampled_factors,
+          labelled_observations,
+          labelled_factors,
           train_percentage,
           num_batches=num_labelled_samples,
           validation=True))
