@@ -58,7 +58,12 @@ def train_with_gin(model_dir,
     gin_config_files = []
   if gin_bindings is None:
     gin_bindings = []
-  gin_bindings = gin_bindings + ["s2_vae.factor_sizes = (3, 6, 40, 32, 32)"]
+  gin_bindings = gin_bindings + [
+    "s2_vae.factor_sizes = (3, 6, 40, 32, 32)",
+    "s2_factor_vae.factor_sizes = (3, 6, 40, 32, 32)",
+    "s2_dip_vae.factor_sizes = (3, 6, 40, 32, 32)",
+    "s2_beta_tc_vae.factor_sizes = (3, 6, 40, 32, 32)",
+  ]
   gin.parse_config_files_and_bindings(gin_config_files, gin_bindings)
   if gin.query_parameter("dataset.name") !=  "dsprites_full":
       raise ValueError("S2_beta_VAE isn't configured to train on other datasets yet.")
