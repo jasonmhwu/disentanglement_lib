@@ -18,121 +18,150 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import gin.tf
+import gin.tf.external_configurables  # pylint: disable=unused-import
 import math
+import numpy as np
 import os
 import pickle
-import numpy as np
-
-import gin.tf.external_configurables  # pylint: disable=unused-import
-import gin.tf
 
 
-def sample_supervised_data(supervised_seed,
-                           ground_truth_data,
-                           num_labelled_samples):
-  """Samples data and queries the labeller to obtain labels.
+# We consider different active learning methods and test their effectiveness
+# on boosting disentanglement metrics
+@gin.configurable("supervised_sampler")
+def make_supervised_sampler(
+    supervised_seed,
+    ground_truth_data,
+    num_labelled_samples,
+    sampling_method,
+):
+    """Wrapper that creates supervised sampler function."""
+    if sampling_method == "random":
+        return sample_random_supervised_data(
+            supervised_seed,
+            ground_truth_data,
+            num_labelled_samples,
+        )
+    else:
+        raise ValueError("sampling method not implemented")
 
-  Args:
-    supervised_seed: Seed for the supervised data. Fixing the seed ensures that
-      the same data is sampled across different parts of the pipeline.
-    ground_truth_data: Dataset class from which the data is to be sampled.
-    num_labelled_samples: How many labelled points should be sampled.
 
-  Returns:
-    sampled_observations: Numpy array with observations of shape
-      (num_labelled_samples, 64, 64, num_channels).
-    sampled_factors: Numpy array with observed factors of variations with shape
-      (num_labelled_samples, num_factors).
-  """
-  supervised_random_state = np.random.RandomState(supervised_seed)
-  sampled_factors = ground_truth_data.sample_factors(num_labelled_samples,
-                                                     supervised_random_state)
-  sampled_observations = ground_truth_data.sample_observations_from_factors(
-      sampled_factors, supervised_random_state)
-  sampled_factors, factor_sizes = make_labeller(sampled_factors,
-                                                ground_truth_data,
-                                                supervised_random_state)
-  return sampled_observations, sampled_factors, factor_sizes
+def sample_random_supervised_data(
+    supervised_seed,
+    ground_truth_data,
+    num_labelled_samples
+):
+    """Samples data and queries the labeller to obtain labels.
+
+    Args:
+      supervised_seed: Seed for the supervised data. Fixing the seed ensures that
+        the same data is sampled across different parts of the pipeline.
+      ground_truth_data: Dataset class from which the data is to be sampled.
+      num_labelled_samples: How many labelled points should be sampled.
+
+    Returns:
+      sampled_observations: Numpy array with observations of shape
+        (num_labelled_samples, 64, 64, num_channels).
+      sampled_factors: Numpy array with observed factors of variations with shape
+        (num_labelled_samples, num_factors).
+    """
+    supervised_random_state = np.random.RandomState(supervised_seed)
+    sampled_indices = supervised_random_state.choice(
+        ground_truth_data.unlabelled_indices,
+        num_labelled_samples,
+        replace=False
+    )
+    ground_truth_data.unlabelled_indices = np.delete(
+        ground_truth_data.unlabelled_indices, sampled_indices
+    )
+    sampled_observations = np.expand_dims(ground_truth_data.images[sampled_indices], 3)
+    sampled_factors = ground_truth_data.index_to_factors(sampled_indices)
+    sampled_factors, factor_sizes = make_labeller(
+        sampled_factors,
+        ground_truth_data,
+        supervised_random_state
+    )
+    return sampled_observations, sampled_factors, factor_sizes
 
 
 def load_supervised_data(supervised_seed,
                          ground_truth_data,
                          num_labelled_samples,
                          supervised_selection_criterion):
-  """Load data and queries the labeller to obtain labels.
+    """Load data and queries the labeller to obtain labels.
 
-  Args:
-    supervised_seed: Seed for the supervised data. Fixing the seed ensures that
-      the same data is sampled across different parts of the pipeline.
-    ground_truth_data: Dataset class from which the data is to be sampled.
-    num_labelled_samples: How many labelled points should be sampled.
-    supervised_selection_criterion: Criterion that the data points are selected from
-  
-  Returns:
-    sampled_observations: Numpy array with observations of shape
-      (num_labelled_samples, 64, 64, num_channels).
-    sampled_factors: Numpy array with observed factors of variations with shape
-      (num_labelled_samples, num_factors).
-  """
-  supervised_random_state = np.random.RandomState(supervised_seed)
-  pickle_path = os.path.join(
-    os.environ.get("DISENTANGLEMENT_LIB_DATA", "."),
-    "dsprites", f"{supervised_selection_criterion}.pickle"
-  )
-  try:
+    Args:
+      supervised_seed: Seed for the supervised data. Fixing the seed ensures that
+        the same data is sampled across different parts of the pipeline.
+      ground_truth_data: Dataset class from which the data is to be sampled.
+      num_labelled_samples: How many labelled points should be sampled.
+      supervised_selection_criterion: Criterion that the data points are selected from
+
+    Returns:
+      sampled_observations: Numpy array with observations of shape
+        (num_labelled_samples, 64, 64, num_channels).
+      sampled_factors: Numpy array with observed factors of variations with shape
+        (num_labelled_samples, num_factors).
+    """
+    supervised_random_state = np.random.RandomState(supervised_seed)
+    pickle_path = os.path.join(
+        os.environ.get("DISENTANGLEMENT_LIB_DATA", "."),
+        "dsprites", f"{supervised_selection_criterion}.pickle"
+    )
+    try:
         with open(pickle_path, 'rb') as handle:
             data_points_dict = pickle.load(handle)
         sampled_indices = data_points_dict['informative_indices'][:num_labelled_samples]
         sampled_factors = data_points_dict['informative_factors'][:num_labelled_samples]
         sampled_observations = np.expand_dims(ground_truth_data.images[sampled_indices], 3)
         sampled_factors, factor_sizes = make_labeller(sampled_factors,
-                                                ground_truth_data,
-                                                supervised_random_state)
+                                                      ground_truth_data,
+                                                      supervised_random_state)
         return sampled_observations, sampled_factors, factor_sizes
-  except:
+    except:
         raise ValueError(f"can't find pickle file at {pickle_path}")
 
 
 def train_test_split(observations, labels, num_labelled_samples,
                      train_percentage):
-  """Splits observations and labels in train and test sets.
+    """Splits observations and labels in train and test sets.
 
-  Args:
-    observations: Numpy array containing the observations with shape
-      (num_labelled_samples, 64, 64, num_channels).
-    labels: Numpy array containing the observed factors of variations with shape
-      (num_labelled_samples, num_factors).
-    num_labelled_samples: How many labelled observations are expected. Used to
-      check that the observations have the right shape.
-    train_percentage: Float in [0,1] indicating which fraction of the labelled
-      data should be used for training.
+    Args:
+      observations: Numpy array containing the observations with shape
+        (num_labelled_samples, 64, 64, num_channels).
+      labels: Numpy array containing the observed factors of variations with shape
+        (num_labelled_samples, num_factors).
+      num_labelled_samples: How many labelled observations are expected. Used to
+        check that the observations have the right shape.
+      train_percentage: Float in [0,1] indicating which fraction of the labelled
+        data should be used for training.
 
-  Returns:
-    observations_train: Numpy array of shape
-      (train_percentage * num_labelled_samples, 64, 64, num_channels) containing
-      the observations for the training.
-    labels_train: Numpy array of shape (train_percentage * num_labelled_samples,
-      num_factors) containing the observed factors of variation for the training
-      observations.
-    observations_test: Numpy array containing the observations for the testing
-      with shape ((1-train_percentage) * num_labelled_samples, 64, 64,
-        num_channels)
-    labels_test: Numpy array containing the observed factors of variation for
-      the testing data with shape ((1-train_percentage) * num_labelled_samples,
-      num_factors).
-  """
-  assert observations.shape[0] == num_labelled_samples, \
-      "Wrong observations shape."
-  num_labelled_samples_train = int(
-      math.ceil(num_labelled_samples * train_percentage))
-  num_labelled_samples_test = num_labelled_samples - num_labelled_samples_train
-  observations_train = observations[:num_labelled_samples_train, :, :, :]
-  observations_test = observations[num_labelled_samples_train:, :, :, :]
+    Returns:
+      observations_train: Numpy array of shape
+        (train_percentage * num_labelled_samples, 64, 64, num_channels) containing
+        the observations for the training.
+      labels_train: Numpy array of shape (train_percentage * num_labelled_samples,
+        num_factors) containing the observed factors of variation for the training
+        observations.
+      observations_test: Numpy array containing the observations for the testing
+        with shape ((1-train_percentage) * num_labelled_samples, 64, 64,
+          num_channels)
+      labels_test: Numpy array containing the observed factors of variation for
+        the testing data with shape ((1-train_percentage) * num_labelled_samples,
+        num_factors).
+    """
+    assert observations.shape[0] == num_labelled_samples, \
+        "Wrong observations shape."
+    num_labelled_samples_train = int(
+        math.ceil(num_labelled_samples * train_percentage))
+    num_labelled_samples_test = num_labelled_samples - num_labelled_samples_train
+    observations_train = observations[:num_labelled_samples_train, :, :, :]
+    observations_test = observations[num_labelled_samples_train:, :, :, :]
 
-  labels_train = labels[:num_labelled_samples_train, :]
-  labels_test = labels[num_labelled_samples_train:, :]
-  assert labels_test.shape[0] == num_labelled_samples_test, "Wrong size test."
-  return observations_train, labels_train, observations_test, labels_test
+    labels_train = labels[:num_labelled_samples_train, :]
+    labels_test = labels[num_labelled_samples_train:, :]
+    assert labels_test.shape[0] == num_labelled_samples_test, "Wrong size test."
+    return observations_train, labels_train, observations_test, labels_test
 
 
 # We consider different oracles (labeller functions) to test the robustness of
@@ -142,168 +171,168 @@ def make_labeller(labels,
                   dataset,
                   random_state,
                   labeller_fn=gin.REQUIRED):
-  """Wrapper that creates labeller function."""
-  return labeller_fn(labels, dataset, random_state)
+    """Wrapper that creates labeller function."""
+    return labeller_fn(labels, dataset, random_state)
 
 
 @gin.configurable(
     "perfect_labeller", denylist=["labels", "dataset"])
 def perfect_labeller(labels, dataset, random_state):
-  """Returns the true factors of variations without artifacts.
+    """Returns the true factors of variations without artifacts.
 
-  Args:
-    labels: True observations of the factors of variations. Numpy array of shape
-      (num_labelled_samples, num_factors) of Float32.
-    dataset: Dataset class.
-    random_state: Random state for the noise (unused).
+    Args:
+      labels: True observations of the factors of variations. Numpy array of shape
+        (num_labelled_samples, num_factors) of Float32.
+      dataset: Dataset class.
+      random_state: Random state for the noise (unused).
 
-  Returns:
-    labels: True observations of the factors of variations without artifacts.
-      Numpy array of shape (num_labelled_samples, num_factors) of Float32.
-  """
-  del random_state
-  labels = np.float32(labels)
-  return labels, dataset.factors_num_values
+    Returns:
+      labels: True observations of the factors of variations without artifacts.
+        Numpy array of shape (num_labelled_samples, num_factors) of Float32.
+    """
+    del random_state
+    labels = np.float32(labels)
+    return labels, dataset.factors_num_values
 
 
 @gin.configurable("bin_labeller", denylist=["labels", "dataset"])
 def bin_labeller(labels, dataset, random_state, num_bins=5):
-  """Returns simplified factors of variations.
+    """Returns simplified factors of variations.
 
-  The factors of variations are binned to take at most num_bins different values
-  to simulate the process of a human roughly labelling the factors of
-  variations.
+    The factors of variations are binned to take at most num_bins different values
+    to simulate the process of a human roughly labelling the factors of
+    variations.
 
-  Args:
-    labels: True observations of the factors of variations.
-    dataset: Dataset class.
-    random_state: Random state for the noise (unused).
-    num_bins: Number of bins for the factors of variations.
+    Args:
+      labels: True observations of the factors of variations.
+      dataset: Dataset class.
+      random_state: Random state for the noise (unused).
+      num_bins: Number of bins for the factors of variations.
 
-  Returns:
-    labels: Binned factors of variations without noise. Numpy array of shape
-      (num_labelled_samples, num_factors) of Float32.
-  """
-  del random_state
-  labels = np.float32(labels)
-  for i, num_values in enumerate(dataset.factors_num_values):
-    if num_values > num_bins:
-      size_bin = (num_values / num_bins)
-      labels[:, i] = np.minimum(labels[:, i] // size_bin, num_bins - 1)
-  factors_num_values_bin = np.minimum(dataset.factors_num_values, num_bins)
-  return labels, factors_num_values_bin
+    Returns:
+      labels: Binned factors of variations without noise. Numpy array of shape
+        (num_labelled_samples, num_factors) of Float32.
+    """
+    del random_state
+    labels = np.float32(labels)
+    for i, num_values in enumerate(dataset.factors_num_values):
+        if num_values > num_bins:
+            size_bin = (num_values / num_bins)
+            labels[:, i] = np.minimum(labels[:, i] // size_bin, num_bins - 1)
+    factors_num_values_bin = np.minimum(dataset.factors_num_values, num_bins)
+    return labels, factors_num_values_bin
 
 
 @gin.configurable(
     "noisy_labeller", denylist=["labels", "dataset"])
 def noisy_labeller(labels, dataset, random_state, prob_random=0.1):
-  """Returns noisy factors of variations.
+    """Returns noisy factors of variations.
 
-  With probability prob_random, the observation of the factor of variations is
-  uniformly sampled from all possible factor values.
+    With probability prob_random, the observation of the factor of variations is
+    uniformly sampled from all possible factor values.
 
-  Args:
-    labels: True observations of the factors of variations.
-    dataset: Dataset class.
-    random_state: Random state for the noise.
-    prob_random: Probability of observing random factors of variations.
+    Args:
+      labels: True observations of the factors of variations.
+      dataset: Dataset class.
+      random_state: Random state for the noise.
+      prob_random: Probability of observing random factors of variations.
 
-  Returns:
-    labels: Noisy factors of variations. Numpy array of shape
-      (num_labelled_samples, num_factors) of Float32.
-  """
-  for j in range(labels.shape[0]):
-    for i, num_values in enumerate(dataset.factors_num_values):
-      p = random_state.rand()
-      if p < prob_random:
-        labels[j, i] = random_state.randint(num_values)
-  labels = np.float32(labels)
-  return labels, dataset.factors_num_values
+    Returns:
+      labels: Noisy factors of variations. Numpy array of shape
+        (num_labelled_samples, num_factors) of Float32.
+    """
+    for j in range(labels.shape[0]):
+        for i, num_values in enumerate(dataset.factors_num_values):
+            p = random_state.rand()
+            if p < prob_random:
+                labels[j, i] = random_state.randint(num_values)
+    labels = np.float32(labels)
+    return labels, dataset.factors_num_values
 
 
 @gin.configurable(
     "permuted_labeller", denylist=["labels", "dataset"])
 def permuted_labeller(labels, dataset, random_state):
-  """Returns factors of variations where the ordinal information is broken.
+    """Returns factors of variations where the ordinal information is broken.
 
-  Args:
-    labels: True observations of the factors of variations.
-    dataset: Dataset class.
-    random_state: Random state for the noise (unused).
+    Args:
+      labels: True observations of the factors of variations.
+      dataset: Dataset class.
+      random_state: Random state for the noise (unused).
 
-  Returns:
-    labels: Noisy factors of variations. Numpy array of shape
-      (num_labelled_samples, num_factors) of Float32.
-  """
-  for i, num_values in enumerate(dataset.factors_num_values):
-    labels[:, i] = permute(labels[:, i], num_values, random_state)
-  labels = np.float32(labels)
-  return labels, dataset.factors_num_values
+    Returns:
+      labels: Noisy factors of variations. Numpy array of shape
+        (num_labelled_samples, num_factors) of Float32.
+    """
+    for i, num_values in enumerate(dataset.factors_num_values):
+        labels[:, i] = permute(labels[:, i], num_values, random_state)
+    labels = np.float32(labels)
+    return labels, dataset.factors_num_values
 
 
 def permute(factor, num_values, random_state):
-  """Permutes the ordinal information of a given factor.
+    """Permutes the ordinal information of a given factor.
 
-  Args:
-    factor: Numpy array with the observations of a factor of varation with shape
-      (num_labelled_samples,) and type Int64.
-    num_values: Int with number of distinct values the factor of variation can
-      take.
-    random_state: Random state used to sample the permutation.
+    Args:
+      factor: Numpy array with the observations of a factor of varation with shape
+        (num_labelled_samples,) and type Int64.
+      num_values: Int with number of distinct values the factor of variation can
+        take.
+      random_state: Random state used to sample the permutation.
 
-  Returns:
-    factor: Numpy array of Int64 with the observations of a factor of varation
-      with permuted values and shape (num_labelled_samples,).
-  """
-  unordered_dict = random_state.permutation(range(num_values))
-  factor[:] = unordered_dict[factor]
-  return factor
+    Returns:
+      factor: Numpy array of Int64 with the observations of a factor of varation
+        with permuted values and shape (num_labelled_samples,).
+    """
+    unordered_dict = random_state.permutation(range(num_values))
+    factor[:] = unordered_dict[factor]
+    return factor
 
 
 def filter_factors(labels, num_observed_factors, random_state):
-  """Filter observed factor keeping only a random subset of them.
+    """Filter observed factor keeping only a random subset of them.
 
-  Args:
-    labels: Factors of variations. Numpy array of shape
-      (num_labelled_samples, num_factors) of Float32.
-    num_observed_factors: How many factors should be kept.
-    random_state: Random state used to sample the permutation.
+    Args:
+      labels: Factors of variations. Numpy array of shape
+        (num_labelled_samples, num_factors) of Float32.
+      num_observed_factors: How many factors should be kept.
+      random_state: Random state used to sample the permutation.
 
-  Returns:
-    Filters the labels so that only num_observed_factors are observed.
-  """
-  if num_observed_factors < 1:
-    raise ValueError("Cannot observe negative amount of factors.")
-  elif num_observed_factors > labels.shape[1]:
-    raise ValueError(
-        "Cannot observe more factors than the ones in the dataset.")
-  factors_to_keep = random_state.choice(labels.shape[1],
-                                        size=num_observed_factors,
-                                        replace=False)
-  return labels[:, factors_to_keep], factors_to_keep
+    Returns:
+      Filters the labels so that only num_observed_factors are observed.
+    """
+    if num_observed_factors < 1:
+        raise ValueError("Cannot observe negative amount of factors.")
+    elif num_observed_factors > labels.shape[1]:
+        raise ValueError(
+            "Cannot observe more factors than the ones in the dataset.")
+    factors_to_keep = random_state.choice(labels.shape[1],
+                                          size=num_observed_factors,
+                                          replace=False)
+    return labels[:, factors_to_keep], factors_to_keep
 
 
 @gin.configurable(
     "partial_labeller", denylist=["labels", "dataset"])
 def partial_labeller(labels, dataset, random_state,
                      num_observed_factors=2):
-  """Returns a few factors of variations without artifacts.
+    """Returns a few factors of variations without artifacts.
 
-  Args:
-    labels: True observations of the factors of variations. Numpy array of shape
-      (num_labelled_samples, num_factors) of Float32.
-    dataset: Dataset class.
-    random_state: Random state for the noise (unused).
-    num_observed_factors: How many factors are observed.
+    Args:
+      labels: True observations of the factors of variations. Numpy array of shape
+        (num_labelled_samples, num_factors) of Float32.
+      dataset: Dataset class.
+      random_state: Random state for the noise (unused).
+      num_observed_factors: How many factors are observed.
 
-  Returns:
-    labels: True observations of the factors of variations without artifacts.
-      Numpy array of shape (num_labelled_samples, num_factors) of Float32.
-  """
-  labels = np.float32(labels)
-  filtered_factors, factors_to_keep = filter_factors(labels,
-                                                     num_observed_factors,
-                                                     random_state)
+    Returns:
+      labels: True observations of the factors of variations without artifacts.
+        Numpy array of shape (num_labelled_samples, num_factors) of Float32.
+    """
+    labels = np.float32(labels)
+    filtered_factors, factors_to_keep = filter_factors(labels,
+                                                       num_observed_factors,
+                                                       random_state)
 
-  factors_num_values = [dataset.factors_num_values[i] for i in factors_to_keep]
-  return filtered_factors, factors_num_values
+    factors_num_values = [dataset.factors_num_values[i] for i in factors_to_keep]
+    return filtered_factors, factors_num_values
