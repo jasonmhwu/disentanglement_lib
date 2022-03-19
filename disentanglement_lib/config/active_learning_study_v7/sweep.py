@@ -93,10 +93,10 @@ def get_config():
   ])
 
 
-class ActiveLearningStudyV6(study.Study):
+class ActiveLearningStudyV7(study.Study):
   """Defines the study for the paper."""
   def __init__(self):
-    self.study_name = "active_learning_study_v6"
+    self.study_name = "active_learning_study_v7"
 
   def get_model_config(self, model_num=0):
     """Returns model bindings and config file."""

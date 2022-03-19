@@ -121,11 +121,6 @@ def train(model_dir,
             raise ValueError("Directory already exists and overwrite is False.")
     # Obtain the dataset.
     dataset = named_data.get_named_ground_truth_data()
-    labelled_observations = np.concatenate(labelled_observations, 0)
-    labelled_factors = np.concatenate(labelled_factors, 0)
-    logging.info(f"factor_sizes is {factor_sizes}")
-    logging.info(f"labelled_factors shape is {labelled_factors.shape}")
-    logging.info(f"labelled_observations shape is {labelled_observations.shape}")
 
     # We create a TPUEstimator based on the provided model. This is primarily so
     # that we could switch to TPU training in the future. For now, we train
@@ -167,15 +162,15 @@ def train(model_dir,
              factor_sizes) = semi_supervised_utils.make_supervised_sampler(
                 supervised_data_seed, dataset, curr_batch_size, supervised_sampling_method
             )
+            labelled_observations = np.concatenate(
+                [labelled_observations, new_labelled_observations],
+                axis=0
+            )
+            labelled_factors = np.concatenate(
+                [labelled_factors, new_labelled_factors],
+                axis=0
+            )
         accumulated_labelled_set_size += curr_batch_size
-        labelled_observations = np.concatenate(
-            [labelled_observations, new_labelled_observations],
-            axis=0
-        )
-        labelled_factors = np.concatenate(
-            [labelled_factors, new_labelled_factors],
-            axis=0
-        )
         logging.info(f"{curr_batch_size} points selected from criterion {supervised_sampling_method}")
         logging.info(f"have a total of {accumulated_labelled_set_size} labelled points.")
         logging.info(f"factor_sizes is {factor_sizes}")
