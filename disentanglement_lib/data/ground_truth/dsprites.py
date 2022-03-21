@@ -69,7 +69,7 @@ class DSprites(ground_truth_data.GroundTruthData):
             self.factor_sizes)
         self.state_space = util.get_state_space(self.factor_sizes,
                                                 self.latent_factor_indices)
-        self.c = np.arange(len(self.images))
+        self.unlabelled_indices = np.arange(len(self.images))
 
     @property
     def num_factors(self):

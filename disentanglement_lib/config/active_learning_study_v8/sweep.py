@@ -76,7 +76,7 @@ def get_supervised_sampling_method():
       "model.supervised_sampling_method",
       h.categorical([
           "highest_summed_logvar",
-          "highest_summed_logvar_alldims",
+          "highest_summed_logvar_all_dims",
       ]))
 
 

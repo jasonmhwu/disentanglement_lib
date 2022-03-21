@@ -123,15 +123,13 @@ def highest_summed_logvar(
       sampled_factors: Numpy array with observed factors of variations with shape
         (num_labelled_samples, num_factors).
     """
-    assert mean.shape == (len(ground_truth_data.unlabelled_indices), ground_truth_data.num_factors)
+    assert mean.shape == (len(ground_truth_data.unlabelled_indices), gin.query_parameter("encoder.num_latent"))
     assert logvar.shape == mean.shape
     del mean
 
     if num_dims == -1:
         num_dims = logvar.shape[1]
-    summed_logvar = tf.reduce_mean(logvar[:, :num_dims], axis=0)
-    logging.info(f"type of summed_logvar is {type(summed_logvar)}")
-    summed_logvar.eval(session=tf.Session())
+    summed_logvar = np.mean(logvar[:, :num_dims], axis=1)
     logging.info(f"shape of evaluated summed_logvar: {summed_logvar.shape}")
     selected_indices = np.argsort(summed_logvar)[-num_labelled_samples:]
     logging.info(f"selected_indices is {selected_indices}")
@@ -142,6 +140,7 @@ def highest_summed_logvar(
     )
     selected_observations = np.expand_dims(ground_truth_data.images[selected_indices], 3)
     selected_factors = ground_truth_data.index_to_factors(selected_indices)
+    supervised_random_state = np.random.RandomState(0)
     selected_factors, factor_sizes = make_labeller(
         selected_factors,
         ground_truth_data,

@@ -23,6 +23,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from absl import logging
+
 import gin.tf
 import numpy as np
 import tensorflow.compat.v1 as tf
@@ -54,6 +56,20 @@ class BaseS2VAE(vae.BaseVAE):
           TPU estimator.
         """
 
+        # predict mode: return mean and logvar
+        if mode == tf.estimator.ModeKeys.PREDICT:
+            data_shape = features.get_shape().as_list()[1:]
+            logging.info(f"data_shape: {data_shape}")
+            with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
+                z_mean, z_logvar = self.gaussian_encoder(
+                    features, is_training=False)
+            return TPUEstimatorSpec(
+                mode=mode,
+                predictions={
+                    "mean": z_mean,
+                    "logvar": z_logvar,
+                }
+            )
         is_training = (mode == tf.estimator.ModeKeys.TRAIN)
         labelled_features = labels[0]
         labels = tf.to_float(labels[1])
@@ -65,16 +81,6 @@ class BaseS2VAE(vae.BaseVAE):
                 features, is_training=is_training)
             z_mean_labelled, _ = self.gaussian_encoder(
                 labelled_features, is_training=is_training)
-
-        # predict mode: return mean and logvar
-        if mode == tf.estimator.ModeKeys.PREDICT:
-            return TPUEstimatorSpec(
-                mode=mode,
-                predictions={
-                    "mean": z_mean,
-                    "logvar": z_logvar,
-                }
-            )
 
         # decoder and loss calculation
         z_sampled = self.sample_from_latent_distribution(z_mean, z_logvar)

@@ -64,12 +64,6 @@ STUDIES = {
     "double_descent_study":
         double_descent_study.DoubleDescentStudy(),
     "test": tests.TestStudy(),
-    "active_learning_study_v1": active_learning_study_v1.ActiveLearningStudyV1(),
-    "active_learning_study_v2": active_learning_study_v2.ActiveLearningStudyV2(),
-    "active_learning_study_v3": active_learning_study_v3.ActiveLearningStudyV3(),
-    "active_learning_study_v4": active_learning_study_v4.ActiveLearningStudyV4(),
-    "active_learning_study_v5": active_learning_study_v5.ActiveLearningStudyV5(),
-    "active_learning_study_v6": active_learning_study_v6.ActiveLearningStudyV6(),
     "active_learning_study_v7": active_learning_study_v7.ActiveLearningStudyV7(),
     "active_learning_study_v8": active_learning_study_v8.ActiveLearningStudyV8(),
 }

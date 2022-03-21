@@ -158,16 +158,27 @@ def train(model_dir,
             )
         else:
             # run estimator.predict to get predictions (mean and logvar)
-            predictions = tpu_estimator.predict(
-                input_fn=unlabelled_dataset_from_ground_truth_data(dataset)
-            )
-            logging.info(f"predictions keys: {predictions.keys()}")
+            pred_input_fn = _make_pred_input_fn(dataset)
+            predictions = tpu_estimator.predict(input_fn=pred_input_fn)
+            idx = 0
+            prediction_length = len(dataset.unlabelled_indices)
+            num_latent = gin.query_parameter("encoder.num_latent")
+            predictions = {
+                "mean": np.zeros((prediction_length, num_latent)),  
+                "logvar": np.zeros((prediction_length, num_latent))        
+            }
+            for pred in tpu_estimator.predict(input_fn=pred_input_fn):
+                predictions["mean"][idx] = pred["mean"]
+                predictions["logvar"][idx] = pred["logvar"]
+                idx += 1
+            logging.info(f"should end at {prediction_length}, actually ends at {idx}")
 
             # get labelled points and add to observation set
             (new_labelled_observations,
              new_labelled_factors,
              factor_sizes) = semi_supervised_utils.make_supervised_sampler(
-                supervised_data_seed, dataset, curr_batch_size, supervised_sampling_method
+                supervised_data_seed, dataset, curr_batch_size,
+                supervised_sampling_method, predictions
             )
             labelled_observations = np.concatenate(
                 [labelled_observations, new_labelled_observations],
@@ -329,10 +340,31 @@ def unlabelled_dataset_from_ground_truth_data(ground_truth_data):
     """
     def unlabelled_generator():
         for idx in ground_truth_data.unlabelled_indices:
-            yield ground_truth_data.images[idx]
+            yield np.expand_dims(ground_truth_data.images[idx], axis=2)
 
-    return tf.data.Dataset.from_generator(
+    unlabelled_dataset = tf.data.Dataset.from_generator(
         unlabelled_generator,
         tf.float32,
         output_shapes=ground_truth_data.observation_shape
     )
+
+    # we don't actually use this dataset
+    # dataset is only created to match model_fn input format
+    sampled_factors, sampled_observations = ground_truth_data.sample(64, np.random.RandomState(0))
+    logging.info(f"sampled_factors shape {sampled_factors.shape}")
+    logging.info(f"sampled_observations shape {sampled_observations.shape}")
+    placeholder_dataset = tf.data.Dataset.from_tensor_slices(
+        (tf.to_float(sampled_observations), tf.to_float(sampled_factors))
+    ).repeat()
+    return tf.data.Dataset.zip((unlabelled_dataset, placeholder_dataset))
+
+
+
+def _make_pred_input_fn(ground_truth_data):
+    def load_dataset(params):
+        dataset = unlabelled_dataset_from_ground_truth_data(ground_truth_data)
+        # drop_remainder is False to generate predictions for all images
+        batch_size = 64  # TODO: should be taking params["batch_size"]
+        dataset = dataset.batch(batch_size, drop_remainder=False)
+        return dataset.make_one_shot_iterator().get_next()
+    return load_dataset
