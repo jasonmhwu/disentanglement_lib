@@ -157,6 +157,13 @@ def train(model_dir,
                 supervised_data_seed, dataset, curr_batch_size
             )
         else:
+            # run estimator.predict to get predictions (mean and logvar)
+            predictions = tpu_estimator.predict(
+                input_fn=unlabelled_dataset_from_ground_truth_data(dataset)
+            )
+            logging.info(f"predictions keys: {predictions.keys()}")
+
+            # get labelled points and add to observation set
             (new_labelled_observations,
              new_labelled_factors,
              factor_sizes) = semi_supervised_utils.make_supervised_sampler(
@@ -173,7 +180,6 @@ def train(model_dir,
         accumulated_labelled_set_size += curr_batch_size
         logging.info(f"{curr_batch_size} points selected from criterion {supervised_sampling_method}")
         logging.info(f"have a total of {accumulated_labelled_set_size} labelled points.")
-        logging.info(f"factor_sizes is {factor_sizes}")
         logging.info(f"labelled_factors shape is {labelled_factors.shape}")
         logging.info(f"labelled_observations shape is {labelled_observations.shape}")
 
@@ -189,7 +195,6 @@ def train(model_dir,
             ),
             steps=training_steps // num_iterations
         )
-        # TODO: optionally evaluate model performance?
 
     # Save model as a TFHub module.
     output_shape = named_data.get_named_ground_truth_data().observation_shape
@@ -308,6 +313,26 @@ def semi_supervised_dataset_from_ground_truth_data(ground_truth_data,
                                                      num_labelled_samples,
                                                      train_percentage)
     labelled_dataset = tf.data.Dataset.from_tensor_slices(
-        (tf.to_float(sampled_observations), tf.to_float(sampled_factors)
-         )).repeat()
+        (tf.to_float(sampled_observations), tf.to_float(sampled_factors))
+    ).repeat()
     return tf.data.Dataset.zip((unlabelled_dataset, labelled_dataset))
+
+
+def unlabelled_dataset_from_ground_truth_data(ground_truth_data):
+    """Generates a tf.data.DataSet from unlabelled dataset.
+
+    Args:
+      ground_truth_data: Dataset class.
+
+    Returns:
+      tf.data.Dataset, each point is an unlabelled image (np.array(64, 64, 1)).
+    """
+    def unlabelled_generator():
+        for idx in ground_truth_data.unlabelled_indices:
+            yield ground_truth_data.images[idx]
+
+    return tf.data.Dataset.from_generator(
+        unlabelled_generator,
+        tf.float32,
+        output_shapes=ground_truth_data.observation_shape
+    )

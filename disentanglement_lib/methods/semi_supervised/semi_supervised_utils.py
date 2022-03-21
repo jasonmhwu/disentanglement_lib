@@ -18,6 +18,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from absl import logging
+
 import gin.tf
 import gin.tf.external_configurables  # pylint: disable=unused-import
 import math
@@ -34,6 +36,7 @@ def make_supervised_sampler(
     ground_truth_data,
     num_labelled_samples,
     sampling_method,
+    predictions,
 ):
     """Wrapper that creates supervised sampler function."""
     if sampling_method == "random":
@@ -41,6 +44,22 @@ def make_supervised_sampler(
             supervised_seed,
             ground_truth_data,
             num_labelled_samples,
+        )
+    elif sampling_method == "highest_summed_logvar":
+        return highest_summed_logvar(
+            predictions["mean"],
+            predictions["logvar"],
+            ground_truth_data,
+            num_labelled_samples,
+            num_dims=ground_truth_data.num_factors,
+        )
+    elif sampling_method == "highest_summed_logvar_all_dims":
+        return highest_summed_logvar(
+            predictions["mean"],
+            predictions["logvar"],
+            ground_truth_data,
+            num_labelled_samples,
+            num_dims=-1
         )
     else:
         raise ValueError("sampling method not implemented")
@@ -84,10 +103,59 @@ def sample_random_supervised_data(
     return sampled_observations, sampled_factors, factor_sizes
 
 
-def load_supervised_data(supervised_seed,
-                         ground_truth_data,
-                         num_labelled_samples,
-                         supervised_selection_criterion):
+def highest_summed_logvar(
+    mean, logvar, ground_truth_data, num_labelled_samples, num_dims=-1
+):
+    """Selects data points with highest logvar summed across latent dimensions.
+
+    Args:
+        mean: mean of encoded representations,
+            shape of (len(unlabelled_indices), num_latent)
+        logvar: lagvar of encoded representations,
+            shape of (len(unlabelled_indices), num_latent)
+        ground_truth_data: Dataset class from which the data is to be sampled.
+        num_labelled_samples: How many labelled points should be sampled.
+        num_dims: integer of how many dimensions to consider. if -1, use all dimensions
+
+    Returns:
+        sampled_observations: Numpy array with observations of shape
+        (num_labelled_samples, 64, 64, num_channels).
+      sampled_factors: Numpy array with observed factors of variations with shape
+        (num_labelled_samples, num_factors).
+    """
+    assert mean.shape == (len(ground_truth_data.unlabelled_indices), ground_truth_data.num_factors)
+    assert logvar.shape == mean.shape
+    del mean
+
+    if num_dims == -1:
+        num_dims = logvar.shape[1]
+    summed_logvar = tf.reduce_mean(logvar[:, :num_dims], axis=0)
+    logging.info(f"type of summed_logvar is {type(summed_logvar)}")
+    summed_logvar.eval(session=tf.Session())
+    logging.info(f"shape of evaluated summed_logvar: {summed_logvar.shape}")
+    selected_indices = np.argsort(summed_logvar)[-num_labelled_samples:]
+    logging.info(f"selected_indices is {selected_indices}")
+
+    # remove from unlabelled_indices, and create ground truth labels
+    ground_truth_data.unlabelled_indices = np.delete(
+        ground_truth_data.unlabelled_indices, selected_indices
+    )
+    selected_observations = np.expand_dims(ground_truth_data.images[selected_indices], 3)
+    selected_factors = ground_truth_data.index_to_factors(selected_indices)
+    selected_factors, factor_sizes = make_labeller(
+        selected_factors,
+        ground_truth_data,
+        supervised_random_state
+    )
+    return selected_observations, selected_factors, factor_sizes
+
+
+def load_supervised_data(
+    supervised_seed,
+    ground_truth_data,
+    num_labelled_samples,
+    supervised_selection_criterion
+):
     """Load data and queries the labeller to obtain labels.
 
     Args:
@@ -118,12 +186,17 @@ def load_supervised_data(supervised_seed,
                                                       ground_truth_data,
                                                       supervised_random_state)
         return sampled_observations, sampled_factors, factor_sizes
-    except:
-        raise ValueError(f"can't find pickle file at {pickle_path}")
+    except FileNotFoundError as e:
+        print("can't find pre-made pickle file.")
+        print(f"{e}")
 
 
-def train_test_split(observations, labels, num_labelled_samples,
-                     train_percentage):
+def train_test_split(
+    observations,
+    labels,
+    num_labelled_samples,
+    train_percentage,
+):
     """Splits observations and labels in train and test sets.
 
     Args:
