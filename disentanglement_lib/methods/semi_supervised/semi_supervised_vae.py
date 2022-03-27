@@ -58,8 +58,15 @@ class BaseS2VAE(vae.BaseVAE):
 
         # predict mode: return mean and logvar
         if mode == tf.estimator.ModeKeys.PREDICT:
-            data_shape = features.get_shape().as_list()[1:]
+            data_shape = features.get_shape().as_list()
             logging.info(f"data_shape: {data_shape}")
+            pdb.set_trace()
+
+            # to get num_stochastic_passes dropout passes, I expanded features along the batch dimension
+            assert data_shape[0] == 1
+            # TODO: make sure only one data point per pass
+            # TODO: check that each z_mean is similar but slightly different
+            
             with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
                 z_mean, z_logvar = self.gaussian_encoder(
                     features, is_training=False)
@@ -391,7 +398,13 @@ def supervised_regularizer_embed(representation, labels,
 class S2BetaVAE(BaseS2VAE):
     """Semi-supervised BetaVAE model."""
 
-    def __init__(self, factor_sizes, beta=gin.REQUIRED, gamma_sup=gin.REQUIRED):
+    def __init__(
+        self,
+        factor_sizes,
+        beta=gin.REQUIRED,
+        gamma_sup=gin.REQUIRED,
+        num_stochastic_passes=1,
+    ):
         """Creates a semi-supervised beta-VAE model.
 
         Implementing Eq. 4 of "beta-VAE: Learning Basic Visual Concepts with a
@@ -402,12 +415,14 @@ class S2BetaVAE(BaseS2VAE):
           factor_sizes: Size of each factor of variation.
           beta: Hyperparameter for the unsupervised regularizer.
           gamma_sup: Hyperparameter for the supervised regularizer.
+          num_stochastic_passes: number of stochastic passes to use during prediction.always 1 during training.
 
         Returns:
           model_fn: Model function for TPUEstimator.
         """
         self.beta = beta
         self.gamma_sup = gamma_sup
+        self.num_stochastic_passes = num_stochastic_passes
         super(S2BetaVAE, self).__init__(factor_sizes)
 
     def unsupervised_regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):

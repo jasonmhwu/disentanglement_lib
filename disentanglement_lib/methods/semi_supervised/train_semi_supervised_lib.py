@@ -171,7 +171,7 @@ def train(model_dir,
                 predictions["mean"][idx] = pred["mean"]
                 predictions["logvar"][idx] = pred["logvar"]
                 idx += 1
-            logging.info(f"should end at {prediction_length}, actually ends at {idx}")
+            logging.info(f"should end at {prediction_length}, actually end at {idx}")
 
             # get labelled points and add to observation set
             (new_labelled_observations,
