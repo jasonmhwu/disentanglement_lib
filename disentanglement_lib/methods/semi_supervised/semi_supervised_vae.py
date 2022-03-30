@@ -24,6 +24,7 @@ from __future__ import division
 from __future__ import print_function
 
 from absl import logging
+import pdb
 
 import gin.tf
 import numpy as np
@@ -59,17 +60,22 @@ class BaseS2VAE(vae.BaseVAE):
         # predict mode: return mean and logvar
         if mode == tf.estimator.ModeKeys.PREDICT:
             data_shape = features.get_shape().as_list()
-            logging.info(f"data_shape: {data_shape}")
-            pdb.set_trace()
 
             # to get num_stochastic_passes dropout passes, I expanded features along the batch dimension
-            assert data_shape[0] == 1
             # TODO: make sure only one data point per pass
             # TODO: check that each z_mean is similar but slightly different
             
             with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
+                features_tiled = tf.tile(
+                    features,
+                    [self.num_stochastic_passes, 1, 1, 1],
+                    name="features_tiled"
+                )
+                # set is_training to True to enable dropout
                 z_mean, z_logvar = self.gaussian_encoder(
-                    features, is_training=False)
+                    features_tiled, is_training=True)
+            logging.info(f"features_tiled shape: {features_tiled.get_shape().as_list()}")
+            logging.info(f"z_mean shape: {z_mean.get_shape().as_list()}")
             return TPUEstimatorSpec(
                 mode=mode,
                 predictions={

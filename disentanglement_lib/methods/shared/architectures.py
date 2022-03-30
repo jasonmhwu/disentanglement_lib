@@ -235,7 +235,6 @@ def conv_encoder_dropout(
       log_var: Output tensor of shape (batch_size, num_latent) with latent
         variable log variances.
     """
-    del is_training
     assert (dropout_rate > 0) and (dropout_rate < 1)
     e1 = tf.layers.conv2d(
         inputs=input_tensor,
@@ -246,9 +245,10 @@ def conv_encoder_dropout(
         padding="same",
         name="e1",
     )
-    drop1 = tf.layers.Dropout(
+    drop1 = tf.layers.dropout(
         inputs=e1,
         rate=dropout_rate,
+        training=is_training,
         name="drop1",
     )
     e2 = tf.layers.conv2d(
@@ -260,9 +260,10 @@ def conv_encoder_dropout(
         padding="same",
         name="e2",
     )
-    drop2 = tf.layers.Dropout(
+    drop2 = tf.layers.dropout(
         inputs=e2,
         rate=dropout_rate,
+        training=is_training,
         name="drop2",
     )
     e3 = tf.layers.conv2d(
@@ -274,10 +275,11 @@ def conv_encoder_dropout(
         padding="same",
         name="e3",
     )
-    drop3 = tf.layers.Dropout(
+    drop3 = tf.layers.dropout(
         inputs=e3,
         rate=dropout_rate,
         name="drop3",
+        training=is_training,
     )
     e4 = tf.layers.conv2d(
         inputs=drop3,
@@ -288,14 +290,15 @@ def conv_encoder_dropout(
         padding="same",
         name="e4",
     )
-    drop4 = tf.layers.Dropout(
+    drop4 = tf.layers.dropout(
         inputs=e4,
         rate=dropout_rate,
+        training=is_training,
         name="drop4",
     )
     flat_drop4 = tf.layers.flatten(drop4)
     e5 = tf.layers.dense(flat_drop4, int(256 * num_parameters_scale), activation=tf.nn.relu, name="e5")
-    drop5 = tf.layers.Dropout(inputs=e5, rate=dropout_rate, name="drop5")
+    drop5 = tf.layers.dropout(inputs=e5, rate=dropout_rate, training=is_training, name="drop5")
     means = tf.layers.dense(drop5, num_latent, activation=None, name="means")
     log_var = tf.layers.dense(drop5, num_latent, activation=None, name="log_var")
     return means, log_var

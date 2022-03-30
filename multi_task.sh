@@ -1,7 +1,7 @@
 #!/bin/bash
 
 even_spread=true
-study_name=active_learning_study_v8
+study_name=active_learning_study_v7
 pipeline_name=dlib_reproduce_semi_supervised
 sleep_command='sleep 0'
 only_train=false
@@ -13,7 +13,7 @@ else
 	only_train_flag=''
 fi
 
-for model_num in {0..5}
+for model_num in {20..29}
 do
 	if [ "$even_spread" = true ]
 	then

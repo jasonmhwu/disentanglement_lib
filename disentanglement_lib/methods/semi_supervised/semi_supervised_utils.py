@@ -45,18 +45,18 @@ def make_supervised_sampler(
             ground_truth_data,
             num_labelled_samples,
         )
-    elif sampling_method == "highest_summed_logvar":
-        return highest_summed_logvar(
+    elif sampling_method == "highest_summed_uncertainty":
+        return highest_summed_uncertainty(
             predictions["mean"],
-            predictions["logvar"],
+            predictions["uncertainty"],
             ground_truth_data,
             num_labelled_samples,
             num_dims=ground_truth_data.num_factors,
         )
-    elif sampling_method == "highest_summed_logvar_all_dims":
-        return highest_summed_logvar(
+    elif sampling_method == "highest_summed_uncertainty_all_dims":
+        return highest_summed_uncertainty(
             predictions["mean"],
-            predictions["logvar"],
+            predictions["uncertainty"],
             ground_truth_data,
             num_labelled_samples,
             num_dims=-1
@@ -83,6 +83,7 @@ def sample_random_supervised_data(
         (num_labelled_samples, 64, 64, num_channels).
       sampled_factors: Numpy array with observed factors of variations with shape
         (num_labelled_samples, num_factors).
+      selected_indices: Numpy array with the selected indices to be labelled.
     """
     supervised_random_state = np.random.RandomState(supervised_seed)
     sampled_indices = supervised_random_state.choice(
@@ -100,18 +101,18 @@ def sample_random_supervised_data(
         ground_truth_data,
         supervised_random_state
     )
-    return sampled_observations, sampled_factors, factor_sizes
+    return sampled_observations, sampled_factors, factor_sizes, sampled_indices
 
 
-def highest_summed_logvar(
-    mean, logvar, ground_truth_data, num_labelled_samples, num_dims=-1
+def highest_summed_uncertainty(
+    mean, uncertainty, ground_truth_data, num_labelled_samples, num_dims=-1
 ):
     """Selects data points with highest logvar summed across latent dimensions.
 
     Args:
         mean: mean of encoded representations,
             shape of (len(unlabelled_indices), num_latent)
-        logvar: lagvar of encoded representations,
+        uncertainty: uncertainty of encoded representations,
             shape of (len(unlabelled_indices), num_latent)
         ground_truth_data: Dataset class from which the data is to be sampled.
         num_labelled_samples: How many labelled points should be sampled.
@@ -119,19 +120,21 @@ def highest_summed_logvar(
 
     Returns:
         sampled_observations: Numpy array with observations of shape
-        (num_labelled_samples, 64, 64, num_channels).
-      sampled_factors: Numpy array with observed factors of variations with shape
-        (num_labelled_samples, num_factors).
+            (num_labelled_samples, 64, 64, num_channels).
+        sampled_factors: Numpy array with observed factors of variations with shape
+            (num_labelled_samples, num_factors).
+        selected_indices: Numpy array with the selected indices to be labelled.
+      
     """
     assert mean.shape == (len(ground_truth_data.unlabelled_indices), gin.query_parameter("encoder.num_latent"))
-    assert logvar.shape == mean.shape
+    assert uncertainty.shape == mean.shape
     del mean
 
     if num_dims == -1:
-        num_dims = logvar.shape[1]
-    summed_logvar = np.mean(logvar[:, :num_dims], axis=1)
-    logging.info(f"shape of evaluated summed_logvar: {summed_logvar.shape}")
-    selected_indices = np.argsort(summed_logvar)[-num_labelled_samples:]
+        num_dims = uncertainty.shape[1]
+    summed_uncertainty = np.mean(uncertainty[:, :num_dims], axis=1)
+    logging.info(f"shape of evaluated summed_uncertainty: {summed_uncertainty.shape}")
+    selected_indices = np.argsort(summed_uncertainty)[-num_labelled_samples:]
     logging.info(f"selected_indices is {selected_indices}")
 
     # remove from unlabelled_indices, and create ground truth labels
@@ -146,7 +149,50 @@ def highest_summed_logvar(
         ground_truth_data,
         supervised_random_state
     )
-    return selected_observations, selected_factors, factor_sizes
+    return selected_observations, selected_factors, factor_sizes, selected_indices
+
+
+def calc_mean_and_uncertainty(
+    prediction,
+    uncertainty_method,
+    num_stochastic_passes,
+):
+    """calculate mean and uncertainty based on uncertainty_method.
+
+    Args:
+        prediction: dictionary containing mean and logvar, each is a numpy array.
+        uncertainty_method: string about how to calculate uncertainty.
+        num_stochastic_passes: integer, number of stochastic passes for each element in prediction dictionary.
+
+    Returns:
+        dropout_mean: the mean of each element.
+        dropout_uncertainty: numpy array: the uncertainty of each element.
+    """
+    assert "mean" in prediction.keys()
+    assert "logvar" in prediction.keys()
+    assert prediction["mean"].shape == prediction["logvar"].shape
+
+    num_rows, num_latent = prediction["mean"].shape
+    assert num_rows % num_stochastic_passes == 0
+    batch_size = int(num_rows // num_stochastic_passes)
+
+    if uncertainty_method == "logvar":
+        if num_stochastic_passes == 1:
+            return prediction["mean"], prediction["logvar"]
+        else:
+            raise NotImplementedError("uncertainty_method logvar doesn't support multiple forward passes")
+    elif uncertainty_method == "dropout_mean":
+        dropout_mean = np.zeros((batch_size, num_latent))
+        dropout_uncertainty = np.zeros((batch_size, num_latent))
+        all_indices = np.arange(num_rows)
+        for idx in range(batch_size):
+            curr_indices = (all_indices % batch_size) == idx
+            dropout_mean[idx, :] = np.mean(prediction["mean"][curr_indices, :], axis=0)
+            dropout_uncertainty[idx, :] = np.std(prediction["mean"][curr_indices, :], axis=0)
+        return dropout_mean, dropout_uncertainty
+    else:
+        raise NotImplementedError(f"uncertainty_method {uncertainty_method} not recognized.")
+
 
 
 def load_supervised_data(

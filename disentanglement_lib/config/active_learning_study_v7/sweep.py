@@ -61,7 +61,8 @@ def get_default_models():
   model_fn = h.fixed("model.model", "@s2_vae()")
   betas = h.sweep("s2_vae.beta", h.discrete([1., 4., 16.]))
   gamma_sups = h.sweep("s2_vae.gamma_sup", h.discrete([1.]))
-  parameters = h.product([betas, gamma_sups])
+  num_stochastic_passes = h.sweep("s2_vae.num_stochastic_passes", h.discrete([8, 32]))
+  parameters = h.product([betas, gamma_sups, num_stochastic_passes])
   config_s2_beta_vae = h.zipit([model_name, parameters, model_fn])
   
   all_models = h.chainit([
@@ -75,13 +76,32 @@ def get_supervised_sampling_method():
   return h.sweep(
       "model.supervised_sampling_method",
       h.categorical([
-          "random"
+          "highest_summed_uncertainty",
+          "highest_summed_uncertainty_all_dims",
       ]))
+
+
+def get_uncertainty_method():
+  """Returns all uncertainty methods."""
+  return h.sweep(
+      "model.uncertainty_method",
+      h.categorical([
+          "dropout_mean",
+      ]))
+  
+
+
+def get_dropout_rate():
+  """Returns all dropout rates."""
+  return h.sweep(
+      "conv_encoder_dropout.dropout_rate",
+      h.discrete([0.1, 0.2, 0.3, 0.4, 0.5]),
+  )
 
 
 def get_config():      
   """Returns the hyperparameter configs for different experiments."""
-  arch_enc = h.fixed("encoder.encoder_fn", "@conv_encoder", length=1)
+  arch_enc = h.fixed("encoder.encoder_fn", "@conv_encoder_dropout", length=1)
   arch_dec = h.fixed("decoder.decoder_fn", "@deconv_decoder", length=1)
   architecture = h.zipit([arch_enc, arch_dec])
   return h.product([
@@ -89,6 +109,8 @@ def get_config():
       architecture,
       get_default_models(),
       get_supervised_sampling_method(),
+      get_uncertainty_method(),
+      get_dropout_rate(),
       get_seeds(1),
   ])
 

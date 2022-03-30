@@ -35,6 +35,7 @@ from disentanglement_lib.methods.unsupervised import gaussian_encoder_model
 from disentanglement_lib.utils import results
 from tensorflow_estimator.python.estimator.tpu import tpu_config
 from tensorflow_estimator.python.estimator.tpu.tpu_estimator import TPUEstimator
+from tensorflow.python import debug as tf_debug
 
 
 def train_with_gin(model_dir,
@@ -81,6 +82,7 @@ def train(model_dir,
           num_labelled_samples=gin.REQUIRED,
           train_percentage=gin.REQUIRED,
           supervised_sampling_method=gin.REQUIRED,
+          uncertainty_method=gin.REQUIRED,
           supervised_batch_size=gin.REQUIRED,
           name="",
           model_num=None,
@@ -105,6 +107,7 @@ def train(model_dir,
         training.
       train_percentage: Fraction of the labelled data to use for training (0,1)
       supervised_sampling_method: List of strings about how supervised data are selected.
+      uncertainty_method: string about how to calculate uncertainty
       supervised_batch_size: batch size of data points to be labelled next iteration.
       name: Optional string with name of the model (can be used to name models).
       num_checkpoints: integer, number of checkpoints spreading evenly acrss training_steps
@@ -119,6 +122,11 @@ def train(model_dir,
             tf.gfile.DeleteRecursively(model_dir)
         else:
             raise ValueError("Directory already exists and overwrite is False.")
+    
+    # create an artifacts folder to store intermediate items
+    artifacts_path = os.path.join(model_dir, "artifacts")
+    tf.io.gfile.makedirs(artifacts_path)
+
     # Obtain the dataset.
     dataset = named_data.get_named_ground_truth_data()
 
@@ -151,32 +159,43 @@ def train(model_dir,
             supervised_batch_size
         )
         if iter == 0:  # first batch is always random
-            (labelled_observations,
-             labelled_factors,
-             factor_sizes) = semi_supervised_utils.sample_random_supervised_data(
+            (labelled_observations, labelled_factors,
+             factor_sizes, selected_indices) = semi_supervised_utils.sample_random_supervised_data(
                 supervised_data_seed, dataset, curr_batch_size
             )
         else:
             # run estimator.predict to get predictions (mean and logvar)
-            pred_input_fn = _make_pred_input_fn(dataset)
-            predictions = tpu_estimator.predict(input_fn=pred_input_fn)
+            # TODO: pred_batch_size is currently hard-coded by model. fix it
+            num_stochastic_passes = gin.query_parameter("s2_vae.num_stochastic_passes")
+            pred_batch_size = int(64 // num_stochastic_passes)
+            pred_input_fn = _make_pred_input_fn(dataset, pred_batch_size)
             idx = 0
+            pred_timer = time.time()
             prediction_length = len(dataset.unlabelled_indices)
             num_latent = gin.query_parameter("encoder.num_latent")
             predictions = {
                 "mean": np.zeros((prediction_length, num_latent)),  
-                "logvar": np.zeros((prediction_length, num_latent))        
+                "uncertainty": np.zeros((prediction_length, num_latent))        
             }
-            for pred in tpu_estimator.predict(input_fn=pred_input_fn):
-                predictions["mean"][idx] = pred["mean"]
-                predictions["logvar"][idx] = pred["logvar"]
-                idx += 1
+            # hooks = [tf_debug.LocalCLIDebugHook()]
+            hooks = []
+            for pred in tpu_estimator.predict(input_fn=pred_input_fn, hooks=hooks, yield_single_examples=False):
+                # note that the returned mean and logvar is tiled, following the order: [0,1,2,0,1,2,...]
+                # calculate mean and uncertainty over multiple stochastic forward passes
+                dropout_mean, dropout_uncertainty = semi_supervised_utils.calc_mean_and_uncertainty(
+                    pred, uncertainty_method, num_stochastic_passes
+                )
+                assert dropout_mean.shape == dropout_uncertainty.shape
+                num_elm = dropout_mean.shape[0]
+                predictions["mean"][idx : idx + num_elm] = dropout_mean
+                predictions["uncertainty"][idx : idx + num_elm] = dropout_uncertainty
+                idx += num_elm
             logging.info(f"should end at {prediction_length}, actually end at {idx}")
 
             # get labelled points and add to observation set
             (new_labelled_observations,
              new_labelled_factors,
-             factor_sizes) = semi_supervised_utils.make_supervised_sampler(
+             factor_sizes, selected_indices) = semi_supervised_utils.make_supervised_sampler(
                 supervised_data_seed, dataset, curr_batch_size,
                 supervised_sampling_method, predictions
             )
@@ -193,6 +212,15 @@ def train(model_dir,
         logging.info(f"have a total of {accumulated_labelled_set_size} labelled points.")
         logging.info(f"labelled_factors shape is {labelled_factors.shape}")
         logging.info(f"labelled_observations shape is {labelled_observations.shape}")
+        
+        # save labelled indices and predictions 
+        labelled_indices_path = os.path.join(artifacts_path, f"labelled_indices_iter_{iter}")
+        np.save(labelled_indices_path, selected_indices)
+        if iter > 0:
+            dropout_mean_path = os.path.join(artifacts_path, f"dropout_mean_iter_{iter}")
+            np.save(dropout_mean_path, predictions["mean"])
+            dropout_uncertainty_path = os.path.join(artifacts_path, f"dropout_uncertainty_iter_{iter}")
+            np.save(dropout_uncertainty_path, predictions["uncertainty"])
 
         # train
         tpu_estimator.train(
@@ -220,7 +248,7 @@ def train(model_dir,
     results_dict = tpu_estimator.evaluate(
         input_fn=_make_input_fn(
             dataset,
-            num_labelled_samples,
+            accumulated_labelled_set_size,
             unsupervised_data_seed,
             labelled_observations,
             labelled_factors,
@@ -350,7 +378,7 @@ def unlabelled_dataset_from_ground_truth_data(ground_truth_data):
 
     # we don't actually use this dataset
     # dataset is only created to match model_fn input format
-    sampled_factors, sampled_observations = ground_truth_data.sample(64, np.random.RandomState(0))
+    sampled_factors, sampled_observations = ground_truth_data.sample(66, np.random.RandomState(0))
     logging.info(f"sampled_factors shape {sampled_factors.shape}")
     logging.info(f"sampled_observations shape {sampled_observations.shape}")
     placeholder_dataset = tf.data.Dataset.from_tensor_slices(
@@ -360,11 +388,11 @@ def unlabelled_dataset_from_ground_truth_data(ground_truth_data):
 
 
 
-def _make_pred_input_fn(ground_truth_data):
+def _make_pred_input_fn(ground_truth_data, batch_size):
     def load_dataset(params):
         dataset = unlabelled_dataset_from_ground_truth_data(ground_truth_data)
         # drop_remainder is False to generate predictions for all images
-        batch_size = 64  # TODO: should be taking params["batch_size"]
+        # I can't receive params["batch_size"] for some reason, so I passed it in directly
         dataset = dataset.batch(batch_size, drop_remainder=False)
         return dataset.make_one_shot_iterator().get_next()
     return load_dataset
