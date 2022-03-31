@@ -87,13 +87,14 @@ def sample_random_supervised_data(
     """
     supervised_random_state = np.random.RandomState(supervised_seed)
     sampled_indices = supervised_random_state.choice(
-        ground_truth_data.unlabelled_indices,
+        list(ground_truth_data.unlabelled_indices),
         num_labelled_samples,
         replace=False
     )
-    ground_truth_data.unlabelled_indices = np.delete(
-        ground_truth_data.unlabelled_indices, sampled_indices
-    )
+    pre_delete_unlabelled_set_size = len(ground_truth_data.unlabelled_indices)
+    ground_truth_data.unlabelled_indices = ground_truth_data.unlabelled_indices.difference(set(sampled_indices))
+    post_delete_unlabelled_set_size = len(ground_truth_data.unlabelled_indices)
+    assert post_delete_unlabelled_set_size == pre_delete_unlabelled_set_size - num_labelled_samples
     sampled_observations = np.expand_dims(ground_truth_data.images[sampled_indices], 3)
     sampled_factors = ground_truth_data.index_to_factors(sampled_indices)
     sampled_factors, factor_sizes = make_labeller(
@@ -111,9 +112,9 @@ def highest_summed_uncertainty(
 
     Args:
         mean: mean of encoded representations,
-            shape of (len(unlabelled_indices), num_latent)
+            shape of (len(ground_truth_data.images), num_latent)
         uncertainty: uncertainty of encoded representations,
-            shape of (len(unlabelled_indices), num_latent)
+            shape of (len(ground_truth_data.images), num_latent)
         ground_truth_data: Dataset class from which the data is to be sampled.
         num_labelled_samples: How many labelled points should be sampled.
         num_dims: integer of how many dimensions to consider. if -1, use all dimensions
@@ -126,7 +127,7 @@ def highest_summed_uncertainty(
         selected_indices: Numpy array with the selected indices to be labelled.
       
     """
-    assert mean.shape == (len(ground_truth_data.unlabelled_indices), gin.query_parameter("encoder.num_latent"))
+    assert mean.shape == (len(ground_truth_data.images), gin.query_parameter("encoder.num_latent"))
     assert uncertainty.shape == mean.shape
     del mean
 
@@ -134,13 +135,21 @@ def highest_summed_uncertainty(
         num_dims = uncertainty.shape[1]
     summed_uncertainty = np.mean(uncertainty[:, :num_dims], axis=1)
     logging.info(f"shape of evaluated summed_uncertainty: {summed_uncertainty.shape}")
-    selected_indices = np.argsort(summed_uncertainty)[-num_labelled_samples:]
+    # exclude labelled indices
+    sorted_uncertainty_indices = np.argsort(summed_uncertainty)
+    selected_indices = []
+    curr_idx = len(sorted_uncertainty_indices) - 1
+    while len(selected_indices) < num_labelled_samples:
+        if sorted_uncertainty_indices[curr_idx] in ground_truth_data.unlabelled_indices:
+            selected_indices.append(sorted_uncertainty_indices[curr_idx])
+        curr_idx -= 1
     logging.info(f"selected_indices is {selected_indices}")
 
     # remove from unlabelled_indices, and create ground truth labels
-    ground_truth_data.unlabelled_indices = np.delete(
-        ground_truth_data.unlabelled_indices, selected_indices
-    )
+    pre_delete_unlabelled_set_size = len(ground_truth_data.unlabelled_indices)
+    ground_truth_data.unlabelled_indices = ground_truth_data.unlabelled_indices.difference(set(selected_indices))
+    post_delete_unlabelled_set_size = len(ground_truth_data.unlabelled_indices)
+    assert post_delete_unlabelled_set_size == pre_delete_unlabelled_set_size - num_labelled_samples
     selected_observations = np.expand_dims(ground_truth_data.images[selected_indices], 3)
     selected_factors = ground_truth_data.index_to_factors(selected_indices)
     supervised_random_state = np.random.RandomState(0)

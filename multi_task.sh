@@ -13,7 +13,7 @@ else
 	only_train_flag=''
 fi
 
-for model_num in {20..29}
+for model_num in {30..39}
 do
 	if [ "$even_spread" = true ]
 	then

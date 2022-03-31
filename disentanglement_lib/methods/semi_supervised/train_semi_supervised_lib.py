@@ -171,7 +171,7 @@ def train(model_dir,
             pred_input_fn = _make_pred_input_fn(dataset, pred_batch_size)
             idx = 0
             pred_timer = time.time()
-            prediction_length = len(dataset.unlabelled_indices)
+            prediction_length = len(dataset.images)
             num_latent = gin.query_parameter("encoder.num_latent")
             predictions = {
                 "mean": np.zeros((prediction_length, num_latent)),  
@@ -191,6 +191,7 @@ def train(model_dir,
                 predictions["uncertainty"][idx : idx + num_elm] = dropout_uncertainty
                 idx += num_elm
             logging.info(f"should end at {prediction_length}, actually end at {idx}")
+            assert prediction_length == idx
 
             # get labelled points and add to observation set
             (new_labelled_observations,
@@ -357,21 +358,21 @@ def semi_supervised_dataset_from_ground_truth_data(ground_truth_data,
     return tf.data.Dataset.zip((unlabelled_dataset, labelled_dataset))
 
 
-def unlabelled_dataset_from_ground_truth_data(ground_truth_data):
-    """Generates a tf.data.DataSet from unlabelled dataset.
+def enumerate_dataset_from_ground_truth_data(ground_truth_data):
+    """Generates a tf.data.DataSet from entire dataset.
 
     Args:
       ground_truth_data: Dataset class.
 
     Returns:
-      tf.data.Dataset, each point is an unlabelled image (np.array(64, 64, 1)).
+      tf.data.Dataset, each point is an image (np.array(64, 64, 1)).
     """
-    def unlabelled_generator():
-        for idx in ground_truth_data.unlabelled_indices:
+    def sequential_generator():
+        for idx in range(len(ground_truth_data.images)):
             yield np.expand_dims(ground_truth_data.images[idx], axis=2)
 
-    unlabelled_dataset = tf.data.Dataset.from_generator(
-        unlabelled_generator,
+    enumerate_dataset = tf.data.Dataset.from_generator(
+        sequential_generator,
         tf.float32,
         output_shapes=ground_truth_data.observation_shape
     )
@@ -384,13 +385,13 @@ def unlabelled_dataset_from_ground_truth_data(ground_truth_data):
     placeholder_dataset = tf.data.Dataset.from_tensor_slices(
         (tf.to_float(sampled_observations), tf.to_float(sampled_factors))
     ).repeat()
-    return tf.data.Dataset.zip((unlabelled_dataset, placeholder_dataset))
+    return tf.data.Dataset.zip((enumerate_dataset, placeholder_dataset))
 
 
 
 def _make_pred_input_fn(ground_truth_data, batch_size):
     def load_dataset(params):
-        dataset = unlabelled_dataset_from_ground_truth_data(ground_truth_data)
+        dataset = enumerate_dataset_from_ground_truth_data(ground_truth_data)
         # drop_remainder is False to generate predictions for all images
         # I can't receive params["batch_size"] for some reason, so I passed it in directly
         dataset = dataset.batch(batch_size, drop_remainder=False)
