@@ -63,7 +63,7 @@ class DSprites(ground_truth_data.GroundTruthData):
             self.images = np.array(data["imgs"])
             self.factor_sizes = np.array(
                 data["metadata"][()]["latents_sizes"], dtype=np.int64)
-        self.full_factor_sizes = [1, 3, 6, 40, 32, 32]
+        self.factor_sizes = [1, 3, 6, 40, 32, 32]
         self.factor_names = ["shape", "scale", "orientation", "position x", "position y"]
         self.factor_bases = np.prod(self.factor_sizes) / np.cumprod(
             self.factor_sizes)
@@ -77,7 +77,7 @@ class DSprites(ground_truth_data.GroundTruthData):
 
     @property
     def factors_num_values(self):
-        return [self.full_factor_sizes[i] for i in self.latent_factor_indices]
+        return [self.factor_sizes[i] for i in self.latent_factor_indices]
 
     @property
     def observation_shape(self):
@@ -253,7 +253,7 @@ class AbstractDSprites(DSprites):
     @property
     def factors_num_values(self):
         return ([BACKGROUND_COLORS.shape[0], OBJECT_COLORS.shape[0]] +
-                [self.full_factor_sizes[i] for i in self.latent_factor_indices])
+                [self.factor_sizes[i] for i in self.latent_factor_indices])
 
     def sample_factors(self, num, random_state):
         """Sample a batch of factors Y."""
@@ -320,7 +320,6 @@ class SubsetDSprites(ground_truth_data.GroundTruthData):
         except:
             logging.info(f"can't find indices path at {dataset_indices_path}")
 
-        self.full_factor_sizes = [1, 3, 6, 40, 32, 32]
         self.factor_names = ["shape", "scale", "orientation", "position x", "position y"]
         self.factor_bases = np.prod(self.factor_sizes) / np.cumprod(
             self.factor_sizes)

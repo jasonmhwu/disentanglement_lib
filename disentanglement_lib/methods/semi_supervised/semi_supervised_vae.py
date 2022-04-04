@@ -225,8 +225,18 @@ def fine_tune_annealer(gamma, step, iteration_threshold):
 def make_supervised_loss(representation, labels,
                          factor_sizes=None, loss_fn=gin.REQUIRED):
     """Wrapper that creates supervised loss."""
+    assert loss_fn in ['xent', 'l2', 'cov', 'embed']
     with tf.variable_scope("supervised_loss"):
-        loss = loss_fn(representation, labels, factor_sizes)
+        if loss_fn == 'xent':
+            loss = supervised_regularizer_xent(representation, labels, factor_sizes)
+        elif loss_fn == 'l2':
+            loss = supervised_regularizer_l2(representation, labels, factor_sizes)
+        elif loss_fn == 'cov':
+            loss = supervised_regularizer_cov(representation, labels, factor_sizes)
+        elif loss_fn == 'embed':
+            loss = supervised_regularizer_embed(representation, labels, factor_sizes)
+        else:
+            raise ValueError(f"supervsed_loss.loss_fn not recognized.")
     return loss
 
 

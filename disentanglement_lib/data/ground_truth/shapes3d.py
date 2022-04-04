@@ -27,7 +27,7 @@ import h5py
 
 
 SHAPES3D_PATH = os.path.join(
-    os.environ.get("DISENTANGLEMENT_LIB_DATA", "."), "3dshapes",
+    os.environ.get("DISENTANGLEMENT_LIB_DATA", "."), "shapes3d",
     "3dshapes.h5"
 )
 
@@ -64,6 +64,7 @@ class Shapes3D(ground_truth_data.GroundTruthData):
         self.factor_sizes)
     self.factor_names = ["floor color", "wall color", "object color", "object size", "object type",
                          "azimuth"]
+    self.unlabelled_indices = set(list(range(len(self.images))))
 
   @property
   def num_factors(self):

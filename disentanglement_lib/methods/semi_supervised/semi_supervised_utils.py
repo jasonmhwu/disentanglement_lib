@@ -95,7 +95,9 @@ def sample_random_supervised_data(
     ground_truth_data.unlabelled_indices = ground_truth_data.unlabelled_indices.difference(set(sampled_indices))
     post_delete_unlabelled_set_size = len(ground_truth_data.unlabelled_indices)
     assert post_delete_unlabelled_set_size == pre_delete_unlabelled_set_size - num_labelled_samples
-    sampled_observations = np.expand_dims(ground_truth_data.images[sampled_indices], 3)
+    sampled_observations = ground_truth_data.images[sampled_indices]
+    if len(sampled_observations.shape) == 3:
+        sampled_observations = np.expand_dims(sampled_observations, 3)
     sampled_factors = ground_truth_data.index_to_factors(sampled_indices)
     sampled_factors, factor_sizes = make_labeller(
         sampled_factors,
@@ -150,7 +152,9 @@ def highest_summed_uncertainty(
     ground_truth_data.unlabelled_indices = ground_truth_data.unlabelled_indices.difference(set(selected_indices))
     post_delete_unlabelled_set_size = len(ground_truth_data.unlabelled_indices)
     assert post_delete_unlabelled_set_size == pre_delete_unlabelled_set_size - num_labelled_samples
-    selected_observations = np.expand_dims(ground_truth_data.images[selected_indices], 3)
+    selected_observations = ground_truth_data.images[selected_indices]
+    if len(selected_observations.shape) == 3:
+        selected_observations = np.expand_dims(selected_observations, 3)
     selected_factors = ground_truth_data.index_to_factors(selected_indices)
     supervised_random_state = np.random.RandomState(0)
     selected_factors, factor_sizes = make_labeller(
@@ -235,7 +239,9 @@ def load_supervised_data(
             data_points_dict = pickle.load(handle)
         sampled_indices = data_points_dict['informative_indices'][:num_labelled_samples]
         sampled_factors = data_points_dict['informative_factors'][:num_labelled_samples]
-        sampled_observations = np.expand_dims(ground_truth_data.images[sampled_indices], 3)
+        sampled_observations = ground_truth_data.images[sampled_indices]
+        if len(sampled_observations.shape) == 3:
+            sampled_observations = np.expand_dims(sampled_observations, 3)
         sampled_factors, factor_sizes = make_labeller(sampled_factors,
                                                       ground_truth_data,
                                                       supervised_random_state)

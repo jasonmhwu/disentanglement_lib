@@ -62,6 +62,9 @@ class SmallNORB(ground_truth_data.GroundTruthData):
     self.index = util.StateSpaceAtomIndex(self.factor_sizes, features)
     self.state_space = util.SplitDiscreteStateSpace(self.factor_sizes,
                                                     self.latent_factor_indices)
+    self.factor_bases = np.prod(self.factors_num_values) / np.cumprod(
+            self.factors_num_values)
+    self.unlabelled_indices = set(list(range(len(self.images))))
 
   @property
   def num_factors(self):

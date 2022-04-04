@@ -1,9 +1,9 @@
 #!/bin/bash
 
 even_spread=false
-study_name=active_learning_study_v4
+study_name=active_learning_study_v9
 pipeline_name=dlib_reproduce_semi_supervised
-for model_num in {70..79}
+for model_num in {41..42}
 do
 	if [ "$even_spread" = true ]
 	then

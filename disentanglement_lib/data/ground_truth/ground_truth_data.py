@@ -18,6 +18,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import numpy as np
+
 
 class GroundTruthData(object):
   """Abstract class for data sets that are two-step generative models."""
@@ -50,3 +52,12 @@ class GroundTruthData(object):
   def sample_observations(self, num, random_state):
     """Sample a batch of observations X."""
     return self.sample(num, random_state)[1]
+
+  def index_to_factors(self, index_array):
+    """Transform index to factors."""
+    factor_bases = self.factor_bases.astype(int)
+    assert self.num_factors == len(factor_bases)
+    factors = np.zeros((len(index_array), self.num_factors))
+    for factor_idx, factor_base in enumerate(factor_bases):
+        factors[:, factor_idx], index_array = np.divmod(index_array, factor_base)
+    return factors

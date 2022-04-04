@@ -57,15 +57,7 @@ def train_with_gin(model_dir,
         gin_config_files = []
     if gin_bindings is None:
         gin_bindings = []
-    gin_bindings = gin_bindings + [
-        "s2_vae.factor_sizes = (3, 6, 40, 32, 32)",
-        "s2_factor_vae.factor_sizes = (3, 6, 40, 32, 32)",
-        "s2_dip_vae.factor_sizes = (3, 6, 40, 32, 32)",
-        "s2_beta_tc_vae.factor_sizes = (3, 6, 40, 32, 32)",
-    ]
     gin.parse_config_files_and_bindings(gin_config_files, gin_bindings)
-    if gin.query_parameter("dataset.name") != "dsprites_full":
-        raise ValueError("S2_beta_VAE isn't configured to train on other datasets yet.")
     train(model_dir, overwrite)
     gin.clear_config()
 
@@ -368,8 +360,12 @@ def enumerate_dataset_from_ground_truth_data(ground_truth_data):
       tf.data.Dataset, each point is an image (np.array(64, 64, 1)).
     """
     def sequential_generator():
-        for idx in range(len(ground_truth_data.images)):
-            yield np.expand_dims(ground_truth_data.images[idx], axis=2)
+        if len(ground_truth_data.images.shape) == 3:
+            for idx in range(len(ground_truth_data.images)):
+                yield np.expand_dims(ground_truth_data.images[idx], axis=2)
+        else:
+            for idx in range(len(ground_truth_data.images)):
+                yield ground_truth_data.images[idx]
 
     enumerate_dataset = tf.data.Dataset.from_generator(
         sequential_generator,

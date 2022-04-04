@@ -103,6 +103,7 @@ class MPI3D(ground_truth_data.GroundTruthData):
         self.factor_sizes)
     self.factor_names = ["Object color", "Object shape", "Object size", "Camera height", "Background colors",
                          "First DOF", "Second DOF"]
+    self.unlabelled_indices = set(list(range(len(self.images))))
 
   @property
   def num_factors(self):
