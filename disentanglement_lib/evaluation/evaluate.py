@@ -117,21 +117,7 @@ def evaluate(model_dir,
       gin.bind_parameter("dataset.train_with_full_dataset", gin_dict["dataset.train_with_full_dataset"].replace("'", ""))
       gin.bind_parameter("dataset.split_method", gin_dict["dataset.split_method"].replace("'", ""))
       gin.bind_parameter("dataset.num_training_data", int(gin_dict["dataset.num_training_data"].replace("'", "")))
-
-  # load correlation gin config details
-  if gin.query_parameter("correlation.active_correlation") == "auto":
-    # Obtain the correlation parameters from the gin config of the previous step.
-    gin_config_file = os.path.join(model_dir, "results", "gin", "train_final.gin")
-    gin_dict = results.gin_dict(gin_config_file)
-    with gin.unlock_config():
-      gin.bind_parameter("correlation.active_correlation", bool(gin_dict["correlation.active_correlation"] == "True"))
-      if gin.query_parameter("correlation.active_correlation"):
-        gin.bind_parameter("correlation_details.corr_indices",
-                           list(map(int, gin_dict["correlation_details.corr_indices"][1:-1].split(","))))
-        gin.bind_parameter("correlation_details.corr_type", gin_dict["correlation_details.corr_type"].replace("'", ""))
-        if gin.query_parameter("correlation_details.corr_type") == "line":
-          gin.bind_parameter("correlation_hyperparameter.line_width",
-                             float(gin_dict["correlation_hyperparameter.line_width"].replace("'", "")))
+      gin.bind_parameter("correlation.active_correlation", False)
 
   if gin.query_parameter("dataset.train_with_full_dataset") == "True":
     dataset = named_data.get_named_ground_truth_data()

@@ -26,7 +26,9 @@ import math
 import numpy as np
 import os
 import pickle
+import pdb
 
+from scipy.spatial import distance_matrix
 
 # We consider different active learning methods and test their effectiveness
 # on boosting disentanglement metrics
@@ -60,6 +62,12 @@ def make_supervised_sampler(
             ground_truth_data,
             num_labelled_samples,
             num_dims=-1
+        )
+    elif sampling_method == "core_set_greedy":
+        return core_set_greedy(
+            predictions["mean"],
+            ground_truth_data,
+            num_labelled_samples,
         )
     else:
         raise ValueError("sampling method not implemented")
@@ -163,6 +171,77 @@ def highest_summed_uncertainty(
         supervised_random_state
     )
     return selected_observations, selected_factors, factor_sizes, selected_indices
+
+
+def core_set_greedy(
+    all_imgs, ground_truth_data, num_labelled_samples
+):
+    """Selects data points with the core-set greedy approach.
+
+    Args:
+        all_imgs: mean of encoded representations,
+            shape of (len(ground_truth_data.images), num_latent)
+        ground_truth_data: Dataset class from which the data is to be sampled.
+        num_labelled_samples: How many labelled points should be sampled.
+
+    Returns:
+        sampled_observations: Numpy array with observations of shape
+            (num_labelled_samples, 64, 64, num_channels).
+        sampled_factors: Numpy array with observed factors of variations with shape
+            (num_labelled_samples, num_factors).
+        selected_indices: Numpy array with the selected indices to be labelled.
+      
+    """
+    assert all_imgs.shape == (len(ground_truth_data.images), gin.query_parameter("encoder.num_latent"))
+    labelled_indices = list(set(list(range(len(ground_truth_data.images)))).difference(ground_truth_data.unlabelled_indices))
+    labelled_imgs = all_imgs[labelled_indices, :]
+
+    greedy_indices = []
+
+    # get the minimum distances between the labeled and unlabeled examples (iteratively, to avoid memory issues):
+    min_dist = np.min(distance_matrix(labelled_imgs[0, :].reshape((1, labelled_imgs.shape[1])), all_imgs), axis=0)
+    min_dist = min_dist.reshape((1, min_dist.shape[0]))
+    for j in range(1, labelled_imgs.shape[0], 100):
+        if j + 100 < labelled_imgs.shape[0]:
+            dist = distance_matrix(labelled_imgs[j:j+100, :], all_imgs)
+        else:
+            dist = distance_matrix(labelled_imgs[j:, :], all_imgs)
+        min_dist = np.vstack((min_dist, np.min(dist, axis=0).reshape((1, min_dist.shape[1]))))
+        min_dist = np.min(min_dist, axis=0)
+        min_dist = min_dist.reshape((1, min_dist.shape[0]))
+    logging.info(f"shape of min_dist: {min_dist.shape}")
+    assert np.sum(min_dist[0, labelled_indices]) == 0
+
+    # iteratively insert the farthest index and recalculate the minimum distances:
+    farthest = np.argmax(min_dist)
+    greedy_indices.append(farthest)
+    for i in range(num_labelled_samples - 1):
+        dist = distance_matrix(all_imgs[greedy_indices[-1], :].reshape((1,all_imgs.shape[1])), all_imgs)
+        min_dist = np.vstack((min_dist, dist.reshape((1, min_dist.shape[1]))))
+        min_dist = np.min(min_dist, axis=0)
+        min_dist = min_dist.reshape((1, min_dist.shape[0]))
+        farthest = np.argmax(min_dist)
+        greedy_indices.append(farthest)
+    assert set(greedy_indices).isdisjoint(set(labelled_indices))
+    logging.info(f"greedy_indices is {greedy_indices}")
+
+    # remove from unlabelled_indices, and create ground truth labels
+    pre_delete_unlabelled_set_size = len(ground_truth_data.unlabelled_indices)
+    ground_truth_data.unlabelled_indices = ground_truth_data.unlabelled_indices.difference(set(greedy_indices))
+    post_delete_unlabelled_set_size = len(ground_truth_data.unlabelled_indices)
+    assert post_delete_unlabelled_set_size == pre_delete_unlabelled_set_size - num_labelled_samples
+    selected_observations = ground_truth_data.images[greedy_indices]
+    if len(selected_observations.shape) == 3:
+        selected_observations = np.expand_dims(selected_observations, 3)
+    selected_factors = ground_truth_data.index_to_factors(greedy_indices)
+    supervised_random_state = np.random.RandomState(0)
+    selected_factors, factor_sizes = make_labeller(
+        selected_factors,
+        ground_truth_data,
+        supervised_random_state
+    )
+    return selected_observations, selected_factors, factor_sizes, greedy_indices
+
 
 
 def calc_mean_and_uncertainty(
