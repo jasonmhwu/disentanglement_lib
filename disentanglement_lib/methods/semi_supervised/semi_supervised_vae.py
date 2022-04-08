@@ -223,7 +223,8 @@ def fine_tune_annealer(gamma, step, iteration_threshold):
 
 @gin.configurable("supervised_loss", denylist=["representation", "labels"])
 def make_supervised_loss(representation, labels,
-                         factor_sizes=None, loss_fn=gin.REQUIRED):
+                         factor_sizes=None, loss_fn=gin.REQUIRED,
+                         cov_loss_ratio=1.):
     """Wrapper that creates supervised loss."""
     assert loss_fn in ['xent', 'l2', 'cov', 'embed']
     with tf.variable_scope("supervised_loss"):
@@ -235,6 +236,8 @@ def make_supervised_loss(representation, labels,
             loss = supervised_regularizer_cov(representation, labels, factor_sizes)
         elif loss_fn == 'embed':
             loss = supervised_regularizer_embed(representation, labels, factor_sizes)
+        elif loss_fn == 'xent_and_cov':
+            loss = supervised_regularizer_xent_and_cov(representation, labels, factor_sizes, cov_loss_ratio)
         else:
             raise ValueError(f"supervsed_loss.loss_fn not recognized.")
     return loss
@@ -357,6 +360,46 @@ def supervised_regularizer_cov(representation, labels,
     return 2. * tf.nn.l2_loss(
         tf.linalg.set_diag(covariance, tf.zeros([num_diagonals])))
 
+
+@gin.configurable("xent_and_cov", denylist=["representation", "labels"])
+def supervised_regularizer_xent_and_cov(
+    representation,
+    labels,
+    factor_sizes=None,
+    cov_loss_ratio=1.,
+):
+    """Implements a supervised regularizer combining the covariance method and cross-entropy loss.
+
+    Args:
+      representation: Representation of labelled samples.
+      labels: Labels for the labelled samples.
+      factor_sizes: Cardinality of each factor of variation (unused).
+      cov_loss_ratio: integer for covariance off-diagonal loss weight
+
+    Returns:
+      Loss between the representation and the labels.
+    """
+    number_latents = representation.shape[1].value
+    number_factors_of_variations = labels.shape[1].value
+    num_diagonals = tf.math.minimum(number_latents, number_factors_of_variations)
+    expectation_representation = tf.reduce_mean(representation, axis=0)
+    expectation_labels = tf.reduce_mean(labels, axis=0)
+    representation_centered = representation - expectation_representation
+    labels_centered = labels - expectation_labels
+    covariance = tf.reduce_mean(
+        tf.expand_dims(representation_centered, 2) * tf.expand_dims(
+            labels_centered, 1),
+        axis=0)
+    cov_loss = 2. * tf.nn.l2_loss(
+        tf.linalg.set_diag(covariance, tf.zeros([num_diagonals])))
+
+    assert number_latents >= number_factors_of_variations, "Not enough latents."
+    xent_loss = tf.reduce_sum(
+        tf.nn.sigmoid_cross_entropy_with_logits(
+            logits=representation[:, :number_factors_of_variations],
+            labels=normalize_labels(labels, factor_sizes)))
+
+    return xent_loss + cov_loss_ratio * cov_loss
 
 @gin.configurable("embed", denylist=["representation", "labels",
                                      "factor_sizes"])
