@@ -144,7 +144,8 @@ def train(model_dir,
     num_iterations = int(np.ceil(num_labelled_samples / supervised_batch_size))
     accumulated_labelled_set_size = 0
 
-    for iter in range(num_iterations):
+    # the last iteration is called only to calculate dropout mean
+    for iter in range(num_iterations + 1):
         # sample points and retrieve ground truth data
         curr_batch_size = min(
             num_labelled_samples - accumulated_labelled_set_size,
@@ -214,6 +215,10 @@ def train(model_dir,
             np.save(dropout_mean_path, predictions["mean"])
             dropout_uncertainty_path = os.path.join(artifacts_path, f"dropout_uncertainty_iter_{iter}")
             np.save(dropout_uncertainty_path, predictions["uncertainty"])
+        
+        # stop here for last iteration
+        if iter == num_iterations:
+            break
 
         # train
         tpu_estimator.train(
