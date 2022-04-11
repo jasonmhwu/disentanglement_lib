@@ -186,6 +186,14 @@ def train(model_dir,
             logging.info(f"should end at {prediction_length}, actually end at {idx}")
             assert prediction_length == idx
 
+            # save dropout mean and uncertainty
+            dropout_mean_path = os.path.join(artifacts_path, f"dropout_mean_iter_{iter}")
+            np.save(dropout_mean_path, predictions["mean"])
+            dropout_uncertainty_path = os.path.join(artifacts_path, f"dropout_uncertainty_iter_{iter}")
+            np.save(dropout_uncertainty_path, predictions["uncertainty"])
+            if iter == num_iterations:
+                break
+
             # get labelled points and add to observation set
             (new_labelled_observations,
              new_labelled_factors,
@@ -210,15 +218,7 @@ def train(model_dir,
         # save labelled indices and predictions 
         labelled_indices_path = os.path.join(artifacts_path, f"labelled_indices_iter_{iter}")
         np.save(labelled_indices_path, selected_indices)
-        if iter > 0:
-            dropout_mean_path = os.path.join(artifacts_path, f"dropout_mean_iter_{iter}")
-            np.save(dropout_mean_path, predictions["mean"])
-            dropout_uncertainty_path = os.path.join(artifacts_path, f"dropout_uncertainty_iter_{iter}")
-            np.save(dropout_uncertainty_path, predictions["uncertainty"])
         
-        # stop here for last iteration
-        if iter == num_iterations:
-            break
 
         # train
         tpu_estimator.train(

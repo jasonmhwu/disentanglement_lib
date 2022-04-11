@@ -226,7 +226,6 @@ def make_supervised_loss(representation, labels,
                          factor_sizes=None, loss_fn=gin.REQUIRED,
                          cov_loss_ratio=1.):
     """Wrapper that creates supervised loss."""
-    assert loss_fn in ['xent', 'l2', 'cov', 'embed']
     with tf.variable_scope("supervised_loss"):
         if loss_fn == 'xent':
             loss = supervised_regularizer_xent(representation, labels, factor_sizes)
@@ -348,7 +347,8 @@ def supervised_regularizer_cov(representation, labels,
     del factor_sizes
     number_latents = representation.shape[1].value
     number_factors_of_variations = labels.shape[1].value
-    num_diagonals = tf.math.minimum(number_latents, number_factors_of_variations)
+    assert number_latents >= number_factors_of_variations, "Not enough latents."
+    # num_diagonals = tf.math.minimum(number_latents, number_factors_of_variations)
     expectation_representation = tf.reduce_mean(representation, axis=0)
     expectation_labels = tf.reduce_mean(labels, axis=0)
     representation_centered = representation - expectation_representation
@@ -358,7 +358,7 @@ def supervised_regularizer_cov(representation, labels,
             labels_centered, 1),
         axis=0)
     return 2. * tf.nn.l2_loss(
-        tf.linalg.set_diag(covariance, tf.zeros([num_diagonals])))
+        tf.linalg.set_diag(covariance, tf.zeros([number_factors_of_variations])))
 
 
 @gin.configurable("xent_and_cov", denylist=["representation", "labels"])
@@ -381,7 +381,7 @@ def supervised_regularizer_xent_and_cov(
     """
     number_latents = representation.shape[1].value
     number_factors_of_variations = labels.shape[1].value
-    num_diagonals = tf.math.minimum(number_latents, number_factors_of_variations)
+    assert number_latents >= number_factors_of_variations, "Not enough latents."
     expectation_representation = tf.reduce_mean(representation, axis=0)
     expectation_labels = tf.reduce_mean(labels, axis=0)
     representation_centered = representation - expectation_representation
@@ -391,15 +391,14 @@ def supervised_regularizer_xent_and_cov(
             labels_centered, 1),
         axis=0)
     cov_loss = 2. * tf.nn.l2_loss(
-        tf.linalg.set_diag(covariance, tf.zeros([num_diagonals])))
+        tf.linalg.set_diag(covariance, tf.zeros([number_factors_of_variations])))
 
-    assert number_latents >= number_factors_of_variations, "Not enough latents."
     xent_loss = tf.reduce_sum(
         tf.nn.sigmoid_cross_entropy_with_logits(
             logits=representation[:, :number_factors_of_variations],
             labels=normalize_labels(labels, factor_sizes)))
 
-    return xent_loss + cov_loss_ratio * cov_loss
+    return tf.add(xent_loss, cov_loss_ratio * cov_loss, name="xent_and_cov_loss")
 
 @gin.configurable("embed", denylist=["representation", "labels",
                                      "factor_sizes"])
