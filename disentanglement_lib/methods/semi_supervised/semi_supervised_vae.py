@@ -237,6 +237,8 @@ def make_supervised_loss(representation, labels,
             loss = supervised_regularizer_embed(representation, labels, factor_sizes)
         elif loss_fn == 'xent_and_cov':
             loss = supervised_regularizer_xent_and_cov(representation, labels, factor_sizes, cov_loss_ratio)
+        elif loss_fn == 'l2_and_cov':
+            loss = supervised_regularizer_l2_and_cov(representation, labels, factor_sizes, cov_loss_ratio)
         else:
             raise ValueError(f"supervsed_loss.loss_fn not recognized.")
     return loss
@@ -399,6 +401,48 @@ def supervised_regularizer_xent_and_cov(
             labels=normalize_labels(labels, factor_sizes)))
 
     return tf.add(xent_loss, cov_loss_ratio * cov_loss, name="xent_and_cov_loss")
+
+
+@gin.configurable("l2_and_cov", denylist=["representation", "labels"])
+def supervised_regularizer_l2_and_cov(
+    representation,
+    labels,
+    factor_sizes=None,
+    cov_loss_ratio=1.,
+):
+    """Implements a supervised regularizer combining the covariance method and l2 loss.
+
+    Args:
+      representation: Representation of labelled samples.
+      labels: Labels for the labelled samples.
+      factor_sizes: Cardinality of each factor of variation (unused).
+      cov_loss_ratio: integer for covariance off-diagonal loss weight
+
+    Returns:
+      Loss between the representation and the labels.
+    """
+    number_latents = representation.shape[1].value
+    number_factors_of_variations = labels.shape[1].value
+    assert number_latents >= number_factors_of_variations, "Not enough latents."
+    expectation_representation = tf.reduce_mean(representation, axis=0)
+    expectation_labels = tf.reduce_mean(labels, axis=0)
+    representation_centered = representation - expectation_representation
+    labels_centered = labels - expectation_labels
+    covariance = tf.reduce_mean(
+        tf.expand_dims(representation_centered, 2) * tf.expand_dims(
+            labels_centered, 1),
+        axis=0)
+    cov_loss = 2. * tf.nn.l2_loss(
+        tf.linalg.set_diag(covariance, tf.zeros([number_factors_of_variations])))
+
+    l2_loss = 2. * tf.nn.l2_loss(
+        tf.sigmoid(
+            tf.expand_dims(
+                representation[:, :number_factors_of_variations], axis=1))
+        - normalize_labels(labels, factor_sizes))
+
+    return tf.add(l2_loss, cov_loss_ratio * cov_loss, name="l2_and_cov_loss")
+
 
 @gin.configurable("embed", denylist=["representation", "labels",
                                      "factor_sizes"])

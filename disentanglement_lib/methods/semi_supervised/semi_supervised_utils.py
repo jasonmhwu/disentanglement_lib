@@ -193,6 +193,9 @@ def core_set_greedy(
       
     """
     assert all_imgs.shape == (len(ground_truth_data.images), gin.query_parameter("encoder.num_latent"))
+    # for now, try using representations after sigmoid 
+    # all_imgs = 1 / (1 + np.exp(-all_imgs))
+
     labelled_indices = list(set(list(range(len(ground_truth_data.images)))).difference(ground_truth_data.unlabelled_indices))
     labelled_imgs = all_imgs[labelled_indices, :]
 

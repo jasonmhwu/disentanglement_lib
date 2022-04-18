@@ -48,6 +48,10 @@ from disentanglement_lib.config.active_learning_study_v8 import sweep as active_
 from disentanglement_lib.config.active_learning_study_v9 import sweep as active_learning_study_v9
 from disentanglement_lib.config.active_learning_study_v10 import sweep as active_learning_study_v10
 from disentanglement_lib.config.active_learning_study_v11 import sweep as active_learning_study_v11
+from disentanglement_lib.config.active_learning_study_v12 import sweep as active_learning_study_v12
+from disentanglement_lib.config.active_learning_study_v13 import sweep as active_learning_study_v13
+from disentanglement_lib.config.active_learning_study_v14 import sweep as active_learning_study_v14
+from disentanglement_lib.config.active_learning_study_v15 import sweep as active_learning_study_v15
 
 
 STUDIES = {
@@ -72,4 +76,8 @@ STUDIES = {
     "active_learning_study_v9": active_learning_study_v9.ActiveLearningStudyV9(),
     "active_learning_study_v10": active_learning_study_v10.ActiveLearningStudyV10(),
     "active_learning_study_v11": active_learning_study_v11.ActiveLearningStudyV11(),
+    "active_learning_study_v12": active_learning_study_v12.ActiveLearningStudyV12(),
+    "active_learning_study_v13": active_learning_study_v13.ActiveLearningStudyV13(),
+    "active_learning_study_v14": active_learning_study_v14.ActiveLearningStudyV14(),
+    "active_learning_study_v15": active_learning_study_v15.ActiveLearningStudyV15(),
 }
