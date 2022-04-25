@@ -57,6 +57,9 @@ class Cars3D(ground_truth_data.GroundTruthData):
                                                     self.latent_factor_indices)
     self.data_shape = [64, 64, 3]
     self.images = self._load_data()
+    self.factor_bases = np.prod(self.factor_sizes) / np.cumprod(
+        self.factor_sizes)
+    self.unlabelled_indices = set(list(range(len(self.images))))
 
   @property
   def num_factors(self):
@@ -107,6 +110,7 @@ def _load_mesh(filename):
   rescaled_mesh = np.zeros((flattened_mesh.shape[0], 64, 64, 3))
   for i in range(flattened_mesh.shape[0]):
     pic = PIL.Image.fromarray(flattened_mesh[i, :, :, :])
-    pic.thumbnail((64, 64, 3), PIL.Image.ANTIALIAS)
+    # pic.thumbnail((64, 64, 3), PIL.Image.ANTIALIAS)
+    pic = pic.resize((64, 64), PIL.Image.ANTIALIAS)
     rescaled_mesh[i, :, :, :] = np.array(pic)
   return rescaled_mesh * 1. / 255

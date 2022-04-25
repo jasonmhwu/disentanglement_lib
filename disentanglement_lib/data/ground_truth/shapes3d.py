@@ -28,7 +28,7 @@ import h5py
 
 SHAPES3D_PATH = os.path.join(
     os.environ.get("DISENTANGLEMENT_LIB_DATA", "."), "shapes3d",
-    "3dshapes.h5"
+    "3dshapes.npy"
 )
 
 
@@ -48,16 +48,15 @@ class Shapes3D(ground_truth_data.GroundTruthData):
   """
 
   def __init__(self):
-    with h5py.File(SHAPES3D_PATH, "r") as dataset:
-      images = dataset['images'][()]
-      labels = dataset['labels'][()]
+    with tf.io.gfile.GFile(SHAPES3D_PATH, "rb") as f:
+      images = np.load(f)
     n_samples = images.shape[0]
-    self.images = (
-        images.reshape([n_samples, 64, 64, 3]).astype(np.float32) / 255.)
-    features = labels.reshape([n_samples, 6])
+    # self.images = (
+    #     images.reshape([n_samples, 64, 64, 3]).astype(np.float32) / 255.)
+    self.images = images
     self.factor_sizes = [10, 10, 10, 8, 4, 15]
     self.latent_factor_indices = list(range(6))
-    self.num_total_factors = features.shape[1]
+    self.num_total_factors = len(self.factor_sizes)
     self.state_space = util.get_state_space(self.factor_sizes,
                                             self.latent_factor_indices)
     self.factor_bases = np.prod(self.factor_sizes) / np.cumprod(
@@ -86,4 +85,4 @@ class Shapes3D(ground_truth_data.GroundTruthData):
   def sample_observations_from_factors(self, factors, random_state):
     all_factors = self.state_space.sample_all_factors(factors, random_state)
     indices = np.array(np.dot(all_factors, self.factor_bases), dtype=np.int64)
-    return self.images[indices]
+    return self.images[indices] / 255.
