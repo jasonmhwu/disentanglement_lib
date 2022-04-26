@@ -43,19 +43,20 @@ from disentanglement_lib.config.double_descent_study import sweep as double_desc
 # from disentanglement_lib.config.active_learning_study_v4 import sweep as active_learning_study_v4
 # from disentanglement_lib.config.active_learning_study_v5 import sweep as active_learning_study_v5
 # from disentanglement_lib.config.active_learning_study_v6 import sweep as active_learning_study_v6
-from disentanglement_lib.config.active_learning_study_v7 import sweep as active_learning_study_v7
-from disentanglement_lib.config.active_learning_study_v8 import sweep as active_learning_study_v8
-from disentanglement_lib.config.active_learning_study_v9 import sweep as active_learning_study_v9
-from disentanglement_lib.config.active_learning_study_v10 import sweep as active_learning_study_v10
-from disentanglement_lib.config.active_learning_study_v11 import sweep as active_learning_study_v11
-from disentanglement_lib.config.active_learning_study_v12 import sweep as active_learning_study_v12
-from disentanglement_lib.config.active_learning_study_v13 import sweep as active_learning_study_v13
-from disentanglement_lib.config.active_learning_study_v14 import sweep as active_learning_study_v14
-from disentanglement_lib.config.active_learning_study_v15 import sweep as active_learning_study_v15
-from disentanglement_lib.config.active_learning_study_v16 import sweep as active_learning_study_v16
-from disentanglement_lib.config.active_learning_study_v17 import sweep as active_learning_study_v17
-from disentanglement_lib.config.active_learning_study_v18 import sweep as active_learning_study_v18
+# from disentanglement_lib.config.active_learning_study_v7 import sweep as active_learning_study_v7
+# from disentanglement_lib.config.active_learning_study_v8 import sweep as active_learning_study_v8
+# from disentanglement_lib.config.active_learning_study_v9 import sweep as active_learning_study_v9
+# from disentanglement_lib.config.active_learning_study_v10 import sweep as active_learning_study_v10
+# from disentanglement_lib.config.active_learning_study_v11 import sweep as active_learning_study_v11
+# from disentanglement_lib.config.active_learning_study_v12 import sweep as active_learning_study_v12
+# from disentanglement_lib.config.active_learning_study_v13 import sweep as active_learning_study_v13
+# from disentanglement_lib.config.active_learning_study_v14 import sweep as active_learning_study_v14
+# from disentanglement_lib.config.active_learning_study_v15 import sweep as active_learning_study_v15
+# from disentanglement_lib.config.active_learning_study_v16 import sweep as active_learning_study_v16
+# from disentanglement_lib.config.active_learning_study_v17 import sweep as active_learning_study_v17
+# from disentanglement_lib.config.active_learning_study_v18 import sweep as active_learning_study_v18
 from disentanglement_lib.config.active_learning_study_v19 import sweep as active_learning_study_v19
+from disentanglement_lib.config.active_learning_study_v20 import sweep as active_learning_study_v20
 
 
 STUDIES = {
@@ -75,17 +76,6 @@ STUDIES = {
     "double_descent_study":
         double_descent_study.DoubleDescentStudy(),
     "test": tests.TestStudy(),
-    "active_learning_study_v7": active_learning_study_v7.ActiveLearningStudyV7(),
-    "active_learning_study_v8": active_learning_study_v8.ActiveLearningStudyV8(),
-    "active_learning_study_v9": active_learning_study_v9.ActiveLearningStudyV9(),
-    "active_learning_study_v10": active_learning_study_v10.ActiveLearningStudyV10(),
-    "active_learning_study_v11": active_learning_study_v11.ActiveLearningStudyV11(),
-    "active_learning_study_v12": active_learning_study_v12.ActiveLearningStudyV12(),
-    "active_learning_study_v13": active_learning_study_v13.ActiveLearningStudyV13(),
-    "active_learning_study_v14": active_learning_study_v14.ActiveLearningStudyV14(),
-    "active_learning_study_v15": active_learning_study_v15.ActiveLearningStudyV15(),
-    "active_learning_study_v16": active_learning_study_v16.ActiveLearningStudyV16(),
-    "active_learning_study_v17": active_learning_study_v17.ActiveLearningStudyV17(),
-    "active_learning_study_v18": active_learning_study_v18.ActiveLearningStudyV18(),
     "active_learning_study_v19": active_learning_study_v19.ActiveLearningStudyV19(),
+    "active_learning_study_v20": active_learning_study_v20.ActiveLearningStudyV20(),
 }

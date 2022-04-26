@@ -898,3 +898,48 @@ class S2BetaTCVAE(BaseS2VAE):
     def unsupervised_regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
         tc = (self.beta - 1.) * vae.total_correlation(z_sampled, z_mean, z_logvar)
         return tc + kl_loss
+
+
+@gin.configurable("s2_independent_vae")
+class S2IndependentVAE(BaseS2VAE):
+    """Semi-supervised IndependentVAE model."""
+
+    def __init__(
+        self,
+        factor_sizes,
+        beta=gin.REQUIRED,
+        gamma_sup=gin.REQUIRED,
+        gamma_ind=gin.REQUIRED,
+        num_stochastic_passes=1,    
+    ):
+        """Creates an independent-VAE model.
+
+        Args:
+          factor_sizes: Size of each factor of variation.
+          beta: Hyperparameter total correlation.
+          gamma_sup: Hyperparameter for the supervised regularizer.
+          gamma_ind: Hyperparameter for the covariance unsupervised regularizer.
+        """
+        self.beta = beta
+        self.gamma_sup = gamma_sup
+        self.gamma_ind = gamma_ind
+        self.num_stochastic_passes = num_stochastic_passes
+        super(S2IndependentVAE, self).__init__(factor_sizes)
+
+    def unsupervised_regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
+        del z_logvar, z_sampled
+        number_latents = z_mean.shape[1].value
+        expectation_z_mean = tf.reduce_mean(z_mean, axis=0)
+        z_mean_centered = z_mean - expectation_z_mean
+        covariance = tf.reduce_mean(
+            tf.expand_dims(z_mean_centered, 2) * tf.expand_dims(
+                z_mean_centered, 1),
+            axis=0)
+        ind_loss = 2. * tf.nn.l2_loss(
+            tf.linalg.set_diag(covariance, tf.zeros([number_latents])))
+
+        return tf.add(
+            self.beta * kl_loss,
+            self.gamma_ind * ind_loss,
+            name="all_unsupervised_loss"
+        )
