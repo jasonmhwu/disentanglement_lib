@@ -384,3 +384,43 @@ class SubsetDSprites(ground_truth_data.GroundTruthData):
             self.images[batch_indices].astype(np.float32), axis=3
         )
         return batch_images
+
+
+class ManualDSprites(DSprites):
+    """DSprites dataset, but collapse symmetric orientations to the lowest quadrant.
+
+    The data set was originally introduced in "beta-VAE: Learning Basic Visual
+    Concepts with a Constrained Variational Framework" and can be downloaded from
+    https://github.com/deepmind/dsprites-dataset.
+
+    The ground-truth factors of variation are (in the default setting):
+    0 - shape (3 different values)
+    1 - scale (6 different values)
+    2 - orientation (40 different values)
+    3 - position x (32 different values)
+    4 - position y (32 different values)
+    """
+
+    def __init__(self, latent_factor_indices=None):
+        DSprites.__init__(self, latent_factor_indices)
+
+    def collapse_orientation_factor_values(self, factors):
+        """collapses orientations into 0 - 9 for squares, 0 - 19 for ovals."""
+        square_indices = factors[:, 0] == 0
+        factors[square_indices, 2] = factors[square_indices, 2] % 10
+        oval_indices = factors[:, 0] == 1
+        factors[oval_indices, 2] = factors[oval_indices, 2] % 20
+        return factors
+
+    def sample_factors(self, num, random_state):
+        """Sample a batch of factors Y."""
+        factors = self.state_space.sample_latent_factors(num, random_state)
+        return self.collapse_orientation_factor_values(factors)
+
+    def index_to_factors(self, index_array):
+        factor_bases = self.factor_bases.astype(int)
+        factors = np.zeros((len(index_array), self.num_factors))
+        for factor_idx, factor_base in enumerate(factor_bases[1:]):
+            factors[:, factor_idx], index_array = np.divmod(index_array, factor_base)
+        return self.collapse_orientation_factor_values(factors)
+

@@ -68,6 +68,8 @@ def get_named_ground_truth_data(
     return dsprites.NoisyDSprites([1, 2, 3, 4, 5])
   elif name == "scream_dsprites":
     return dsprites.ScreamDSprites([1, 2, 3, 4, 5])
+  elif name == "manual_dsprites":
+    return dsprites.ManualDSprites([1, 2, 3, 4, 5])
   elif name == "smallnorb":
     return norb.SmallNORB()
   elif name == "cars3d":
