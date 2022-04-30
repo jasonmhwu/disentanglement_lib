@@ -551,3 +551,31 @@ def partial_labeller(labels, dataset, random_state,
 
     factors_num_values = [dataset.factors_num_values[i] for i in factors_to_keep]
     return filtered_factors, factors_num_values
+
+
+@gin.configurable(
+    "fixed_partial_labeller", denylist=["labels", "dataset"])
+def fixed_partial_labeller(labels, dataset, random_state,
+                     observed_factor_indices):
+    """Returns a few factors of variations without artifacts.
+
+    Args:
+      labels: True observations of the factors of variations. Numpy array of shape
+        (num_labelled_samples, num_factors) of Float32.
+      dataset: Dataset class.
+      random_state: Random state for the noise (unused).
+      observed_factor_indices: a list of factor indices to observe.
+
+    Returns:
+      labels: True observations of the factors of variations without artifacts.
+        Numpy array of shape (num_labelled_samples, num_factors) of Float32.
+    """
+    labels = np.float32(labels)
+    assert isinstance(observed_factor_indices, list)
+    if max(observed_factor_indices) > labels.shape[1] - 1:
+        raise ValueError(
+            "Cannot observe more factors than the ones in the dataset.")
+    logging.info(f"observed_factor_indices is {observed_factor_indices}")
+    factors_num_values = [dataset.factors_num_values[i] for i in observed_factor_indices]
+    logging.info(f"factors_num_values is {factors_num_values}")
+    return labels[:, observed_factor_indices], factors_num_values

@@ -42,6 +42,12 @@ class BaseS2VAE(vae.BaseVAE):
 
     def __init__(self, factor_sizes):
         self.factor_sizes = factor_sizes
+        try:
+            self.observed_factor_indices = gin.query_parameter("fixed_partial_labeller.observed_factor_indices")
+            self.observed_factor_sizes = [factor_sizes[i] for i in self.observed_factor_indices]
+        except:
+            self.observed_factor_sizes = factor_sizes
+        logging.info(f"observed_factor_sizes is {self.observed_factor_sizes}")
 
     def model_fn(self, features, labels, mode, params):
         """TPUEstimator compatible model function.
@@ -103,7 +109,7 @@ class BaseS2VAE(vae.BaseVAE):
         kl_loss = compute_gaussian_kl(z_mean, z_logvar)
         gamma_annealed = make_annealer(self.gamma_sup, tf.train.get_global_step())
         supervised_loss = make_supervised_loss(
-            z_mean_labelled, labels, self.factor_sizes
+            z_mean_labelled, labels, self.observed_factor_sizes
         )
         regularizer = self.unsupervised_regularizer(
             kl_loss, z_mean, z_logvar, z_sampled) + gamma_annealed * supervised_loss
