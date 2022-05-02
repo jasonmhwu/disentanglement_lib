@@ -229,7 +229,8 @@ def fine_tune_annealer(gamma, step, iteration_threshold):
 
 @gin.configurable("supervised_loss", denylist=["representation", "labels"])
 def make_supervised_loss(representation, labels,
-                         factor_sizes=None, loss_fn=gin.REQUIRED,
+                         factor_sizes=None,
+                         loss_fn=gin.REQUIRED,
                          cov_loss_ratio=1.):
     """Wrapper that creates supervised loss."""
     with tf.variable_scope("supervised_loss"):
@@ -241,6 +242,8 @@ def make_supervised_loss(representation, labels,
             loss = supervised_regularizer_cov(representation, labels, factor_sizes)
         elif loss_fn == 'embed':
             loss = supervised_regularizer_embed(representation, labels, factor_sizes)
+        elif loss_fn == 'multidimensional_embed':
+            loss = supervised_regularizer_multidimensional_embed(representation, labels, factor_sizes)
         elif loss_fn == 'xent_and_cov':
             loss = supervised_regularizer_xent_and_cov(representation, labels, factor_sizes, cov_loss_ratio)
         elif loss_fn == 'l2_and_cov':
@@ -494,11 +497,75 @@ def supervised_regularizer_embed(representation, labels,
                 sigma_value = tf.get_variable("sigma", [1])
             else:
                 sigma_value = sigma
-        logits = -tf.square(
-            (tf.expand_dims(supervised_representation[:, i], axis=1) - embedding) *
-            sigma_value)
+        logits = -tf.square((tf.expand_dims(supervised_representation[:, i], axis=1) - embedding) *
+            sigma_value) 
         one_hot_labels = tf.one_hot(tf.to_int32(labels[:, i]), factor_sizes[i])
         loss += [tf.losses.softmax_cross_entropy(one_hot_labels, logits)]
+    return tf.reduce_sum(tf.add_n(loss))
+
+
+@gin.configurable("multidimensional_embed", denylist=["representation", "labels",
+                                     "factor_sizes"])
+def supervised_regularizer_multidimensional_embed(representation, labels,
+                                 factor_sizes, embedding_dimensions=gin.REQUIRED,
+                                 sigma=gin.REQUIRED,
+                                 use_order=False):
+    """Embed factors in 1d and compute softmax with the representation.
+
+    Assume a factor of variation indexed by j can take k values. We embed each
+    value into k real numbers e_1, ..., e_k. Call e_label(r_j) the embedding of an
+    observed label for the factor j. Then, for a dimension r_j of the
+    representation, the loss is computed as
+    exp(-((r_j - e_label(r_j))*sigma)^2)/sum_{i=1}^k exp(-(r_j - e_i)).
+    We compute this term for each factor of variation j and each point. Finally,
+    we add these terms into a single number.
+
+    Args:
+      representation: Computed representation, tensor of shape (batch_size,
+        num_latents)
+      labels: Observed values for the factors of variation, tensor of shape
+        (batch_size, num_factors).
+      factor_sizes: Cardinality of each factor of variation.
+      sigma: Temperature for the softmax. Set to "learn" if to be learned.
+      use_order: Boolean indicating whether to use the ordering information in the
+        factors of variations or not.
+
+    Returns:
+      Supervised loss based on the softmax between embedded labels and
+      representation.
+    """
+    assert len(factor_sizes) == len(embedding_dimensions)
+    number_factors_of_variations = labels.shape[1].value
+    number_supervised_latent_units = sum(embedding_dimensions)
+    assert number_supervised_latent_units >= number_factors_of_variations
+    supervised_representation = representation[:, :number_supervised_latent_units]
+    loss = []
+    start_dim = 0
+    for i, num_dims in enumerate(embedding_dimensions):
+        with tf.variable_scope(str(i), reuse=tf.AUTO_REUSE):
+            if use_order and (num_dims == 1):
+                bias = tf.get_variable("bias", [])
+                slope = tf.get_variable("slope", [])
+                embedding = tf.range(factor_sizes[i], dtype=tf.float32) * slope + bias
+            else:
+                embedding = tf.get_variable("embedding", [factor_sizes[i], num_dims])
+            if sigma == "learn":
+                sigma_value = tf.get_variable("sigma", [1])
+            else:
+                sigma_value = sigma
+        if num_dims == 1:
+            logits = -tf.square(
+                    (tf.expand_dims(supervised_representation[:, start_dim], axis=1) - embedding[:, 0]) *
+                sigma_value)
+        else:
+            logits = tf.reduce_sum(-tf.square(
+                (tf.expand_dims(
+                    supervised_representation[:, start_dim:(start_dim + num_dims)], axis=1) \
+                    - embedding) *
+                sigma_value), axis=2)
+        one_hot_labels = tf.one_hot(tf.to_int32(labels[:, i]), factor_sizes[i])
+        loss += [tf.losses.softmax_cross_entropy(one_hot_labels, logits)]
+        start_dim += num_dims
     return tf.reduce_sum(tf.add_n(loss))
 
 

@@ -1,9 +1,9 @@
 #!/bin/bash
 
 even_spread=true
-study_name=embeddings_study_v2
+study_name=embeddings_study_v3
 pipeline_name=dlib_reproduce_semi_supervised
-sleep_command='sleep 19000'
+sleep_command='sleep 11000'
 only_train=false
 
 if [ "$only_train" = true ]
