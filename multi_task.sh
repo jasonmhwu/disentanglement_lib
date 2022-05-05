@@ -1,10 +1,10 @@
 #!/bin/bash
 
 even_spread=true
-study_name=embeddings_study_v3
+study_name=embeddings_study_v4
 pipeline_name=dlib_reproduce_semi_supervised
-sleep_command='sleep 11000'
-only_train=false
+sleep_command='sleep 0'
+only_train=true
 
 if [ "$only_train" = true ]
 then
@@ -13,7 +13,7 @@ else
 	only_train_flag=''
 fi
 
-for model_num in {9..17}
+for model_num in 31 36 37 38 39
 do
 	if [ "$even_spread" = true ]
 	then

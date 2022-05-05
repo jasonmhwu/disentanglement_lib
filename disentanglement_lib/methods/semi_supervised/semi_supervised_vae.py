@@ -244,6 +244,8 @@ def make_supervised_loss(representation, labels,
             loss = supervised_regularizer_embed(representation, labels, factor_sizes)
         elif loss_fn == 'multidimensional_embed':
             loss = supervised_regularizer_multidimensional_embed(representation, labels, factor_sizes)
+        elif loss_fn == 'mixed':
+            loss = supervised_regularizer_mixed(representation, labels, factor_sizes)
         elif loss_fn == 'xent_and_cov':
             loss = supervised_regularizer_xent_and_cov(representation, labels, factor_sizes, cov_loss_ratio)
         elif loss_fn == 'l2_and_cov':
@@ -539,6 +541,12 @@ def supervised_regularizer_multidimensional_embed(representation, labels,
     number_supervised_latent_units = sum(embedding_dimensions)
     assert number_supervised_latent_units >= number_factors_of_variations
     supervised_representation = representation[:, :number_supervised_latent_units]
+    
+    # only debugging
+    # assert number_factors_of_variations == 4
+    # assert number_supervised_latent_units == 5
+    # assert representation.shape == (64, 10)
+    # assert supervised_representation.shape == (64, 5)
     loss = []
     start_dim = 0
     for i, num_dims in enumerate(embedding_dimensions):
@@ -550,22 +558,74 @@ def supervised_regularizer_multidimensional_embed(representation, labels,
             else:
                 embedding = tf.get_variable("embedding", [factor_sizes[i], num_dims])
             if sigma == "learn":
-                sigma_value = tf.get_variable("sigma", [1])
+                sigma_value = tf.get_variable("sigma", [num_dims])
             else:
                 sigma_value = sigma
+        # only debugging
+        # assert embedding.shape == (factor_sizes[i], num_dims)
         if num_dims == 1:
-            logits = -tf.square(
-                    (tf.expand_dims(supervised_representation[:, start_dim], axis=1) - embedding[:, 0]) *
-                sigma_value)
+            distance = tf.expand_dims(supervised_representation[:, start_dim], axis=1) - embedding[:, 0]
+            # assert distance.shape == (64, factor_sizes[i])
+            logits = -tf.square(distance * sigma_value)
+            # assert logits.shape == (64, factor_sizes[i])
         else:
-            logits = tf.reduce_sum(-tf.square(
-                (tf.expand_dims(
-                    supervised_representation[:, start_dim:(start_dim + num_dims)], axis=1) \
-                    - embedding) *
-                sigma_value), axis=2)
+            distance = tf.expand_dims(
+                supervised_representation[:, start_dim:(start_dim + num_dims)], axis=1) \
+                - embedding
+            # assert distance.shape == (64, factor_sizes[i], 2)
+            logits = tf.reduce_sum(-tf.square(distance * sigma_value), axis=2)
+            # assert logits.shape == (64, factor_sizes[i])
         one_hot_labels = tf.one_hot(tf.to_int32(labels[:, i]), factor_sizes[i])
         loss += [tf.losses.softmax_cross_entropy(one_hot_labels, logits)]
         start_dim += num_dims
+    # assert start_dim == number_supervised_latent_units
+    return tf.reduce_sum(tf.add_n(loss))
+
+
+@gin.configurable("mixed", denylist=["representation", "labels",
+                                     "factor_sizes"])
+def supervised_regularizer_mixed(representation, labels,
+                                 factor_sizes, embedding_dimensions=gin.REQUIRED,
+                                 loss_terms=gin.REQUIRED):
+    """each factor gets their own loss term. learns all sigma values for multi-dimensional embed losses"""
+    assert len(factor_sizes) == len(embedding_dimensions)
+    assert len(factor_sizes) == len(loss_terms)
+    number_factors_of_variations = labels.shape[1].value
+    number_supervised_latent_units = sum(embedding_dimensions)
+    assert number_supervised_latent_units >= number_factors_of_variations
+    supervised_representation = representation[:, :number_supervised_latent_units]
+    xent_labels = normalize_labels(labels, factor_sizes)
+
+    loss = []
+    start_dim = 0
+    for i, (num_dims, loss_term) in enumerate(zip(embedding_dimensions, loss_terms)):
+        if loss_term == "xent":
+            loss += [tf.reduce_sum(
+                tf.nn.sigmoid_cross_entropy_with_logits(
+                    logits=supervised_representation[:, start_dim],
+                    labels=xent_labels[:, i]))]
+        elif loss_term == "multidimensional_embed":
+            with tf.variable_scope(str(i), reuse=tf.AUTO_REUSE):
+                embedding = tf.get_variable("embedding", [factor_sizes[i], num_dims])
+                sigma_value = tf.get_variable("sigma", [num_dims])
+            if num_dims == 1:
+                distance = tf.expand_dims(supervised_representation[:, start_dim], axis=1) - embedding[:, 0]
+                # assert distance.shape == (64, factor_sizes[i])
+                logits = -tf.square(distance * sigma_value)
+                # assert logits.shape == (64, factor_sizes[i])
+            else:
+                distance = tf.expand_dims(
+                supervised_representation[:, start_dim:(start_dim + num_dims)], axis=1) \
+                    - embedding
+                # assert distance.shape == (64, factor_sizes[i], 2)
+                logits = tf.reduce_sum(-tf.square(distance * sigma_value), axis=2)
+                # assert logits.shape == (64, factor_sizes[i])
+            one_hot_labels = tf.one_hot(tf.to_int32(labels[:, i]), factor_sizes[i])
+            loss += [tf.losses.softmax_cross_entropy(one_hot_labels, logits)]
+        else:
+            raise ValueError("loss term not recognized.")
+        start_dim += num_dims
+    # assert start_dim == number_supervised_latent_units
     return tf.reduce_sum(tf.add_n(loss))
 
 

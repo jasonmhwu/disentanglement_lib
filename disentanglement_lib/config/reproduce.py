@@ -61,6 +61,7 @@ from disentanglement_lib.config.active_learning_study_v21 import sweep as active
 from disentanglement_lib.config.embeddings_study_v1 import sweep as embeddings_study_v1
 from disentanglement_lib.config.embeddings_study_v2 import sweep as embeddings_study_v2
 from disentanglement_lib.config.embeddings_study_v3 import sweep as embeddings_study_v3
+from disentanglement_lib.config.embeddings_study_v4 import sweep as embeddings_study_v4
 
 
 STUDIES = {
@@ -86,4 +87,5 @@ STUDIES = {
     "embeddings_study_v1": embeddings_study_v1.EmbeddingsStudyV1(),
     "embeddings_study_v2": embeddings_study_v2.EmbeddingsStudyV2(),
     "embeddings_study_v3": embeddings_study_v3.EmbeddingsStudyV3(),
+    "embeddings_study_v4": embeddings_study_v4.EmbeddingsStudyV4(),
 }

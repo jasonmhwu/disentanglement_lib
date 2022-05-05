@@ -224,6 +224,8 @@ def train(model_dir,
         
 
         # train
+        hooks = []
+        # hooks = [tf_debug.LocalCLIDebugHook()]
         tpu_estimator.train(
             input_fn=_make_input_fn(
                 dataset,
@@ -233,7 +235,8 @@ def train(model_dir,
                 labelled_factors,
                 train_percentage
             ),
-            steps=training_steps // num_iterations
+            steps=training_steps // num_iterations,
+            hooks=hooks,
         )
 
     # Save model as a TFHub module.
