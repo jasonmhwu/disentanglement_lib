@@ -556,7 +556,29 @@ def supervised_regularizer_multidimensional_embed(representation, labels,
                 slope = tf.get_variable("slope", [])
                 embedding = tf.range(factor_sizes[i], dtype=tf.float32) * slope + bias
             else:
-                embedding = tf.get_variable("embedding", [factor_sizes[i], num_dims])
+                if num_dims == 1:
+                    init_embedding = tf.convert_to_tensor(
+                        np.expand_dims(np.linspace(0, 1, factor_sizes[i]), 1), dtype=tf.float32
+                    )
+                    embedding = tf.get_variable(
+                        "embedding",
+                        initializer=init_embedding
+                    )
+                elif num_dims == 2:
+                    theta = np.linspace(0, 2 * np.pi, factor_sizes[i])
+                    init_embedding = tf.convert_to_tensor(
+                        np.vstack([np.cos(theta), np.sin(theta)]).T, dtype=tf.float32
+                    )
+                    embedding = tf.get_variable(
+                        "embedding",
+                        initializer=init_embedding,
+                    )
+                else:
+                    embedding = tf.get_variable(
+                        "embedding",
+                        shape=[factor_sizes[i], num_dims],
+                    )
+
             if sigma == "learn":
                 sigma_value = tf.get_variable("sigma", [num_dims])
             else:
