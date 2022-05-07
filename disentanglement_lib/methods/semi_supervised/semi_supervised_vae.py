@@ -1098,3 +1098,191 @@ class S2IndependentVAE(BaseS2VAE):
             self.gamma_ind * ind_loss,
             name="all_unsupervised_loss"
         )
+
+
+@gin.configurable("vq_vae")
+class VQVAE(BaseS2VAE):
+    """implementation of Vector-Quantized VAE. embedding is created for each factor"""
+
+    def __init__(self, factor_sizes, embedding_dimensions=gin.REQUIRED):
+        self.factor_sizes = factor_sizes
+        self.observed_factor_sizes = factor_sizes
+        self.embedding_dimensions = embedding_dimensions
+        logging.info(f"observed_factor_sizes is {self.observed_factor_sizes}")
+
+    def model_fn(self, features, labels, mode, params):
+        """TPUEstimator compatible model function.
+
+        Args:
+          features: Batch of images [batch_size, 64, 64, 3].
+          labels: Tuple with batch of features [batch_size, 64, 64, 3] and the
+            labels [batch_size, labels_size].
+          mode: Mode for the TPUEstimator.
+          params: Dict with parameters.
+
+        Returns:
+          TPU estimator.
+        """
+
+        # predict mode: return mean
+        if mode == tf.estimator.ModeKeys.PREDICT:
+            with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
+                features_tiled = tf.tile(
+                    features,
+                    [self.num_stochastic_passes, 1, 1, 1],
+                    name="features_tiled"
+                )
+                # set is_training to True to enable dropout
+                z_mean = self.gaussian_encoder(
+                    features_tiled, is_training=True)
+            return TPUEstimatorSpec(
+                mode=mode,
+                predictions={"mean": z_mean}
+            )
+        is_training = (mode == tf.estimator.ModeKeys.TRAIN)
+        labelled_features = labels[0]
+        labels = tf.cat(labels[1], tf.int32)
+        data_shape = features.get_shape().as_list()[1:]
+        gamma_annealed = make_annealer(self.gamma_sup, tf.train.get_global_step())
+
+        # encoder
+        with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
+            # encoder
+            z_mean = self.gaussian_encoder(
+                features, is_training=is_training)
+            z_mean_labelled = self.gaussian_encoder(
+                labelled_features, is_training=is_training)
+
+        # embedding in each factor
+        # note that the shape is emb_dim, factor_sizes
+        loss_list = []
+        quantized_list = []
+        perplexity_list = []
+        start_dim = 0
+        for i, num_dims in enumerate(self.embedding_dimensions):
+            with tf.variable_scope(str(i), reuse=tf.AUTO_REUSE):
+                if num_dims == 1:
+                    init_embedding = tf.convert_to_tensor(
+                        np.expand_dims(np.linspace(0, 1, self.factor_sizes[i]), 0), dtype=tf.float32
+                    )
+                    embedding = tf.get_variable(
+                        "embedding",
+                        initializer=init_embedding
+                    )
+                elif num_dims == 2:
+                    theta = np.linspace(0, 2 * np.pi, self.factor_sizes[i])
+                    init_embedding = tf.convert_to_tensor(
+                        np.vstack([np.cos(theta), np.sin(theta)]), dtype=tf.float32
+                    )
+                    embedding = tf.get_variable(
+                        "embedding",
+                        initializer=init_embedding,
+                    )
+                else:
+                    embedding = tf.get_variable(
+                        "embedding",
+                        shape=[num_dims, self.factor_sizes[i]],
+                    )
+
+            if num_dims == 1:
+                z_inputs = tf.expand_dims(z_mean[:, start_dim], 1)
+                z_inputs_labelled = tf.expand_dims(z_mean_labelled[:, start_dim], 1)
+            else:
+                z_inputs = z_mean[:, start_dim: (start_dim + num_dims)]
+                z_inputs_labelled = z_mean_labelled[:, start_dim: (start_dim + num_dims)]
+            # calculate distance
+            distances = (
+                tf.reduce_sum(z_inputs ** 2, 1, keepdims=True) -
+                2 * tf.matmul(z_inputs, embedding) +
+                tf.reduce_sum(embedding ** 2, 0, keepdims=True))
+            assert distances.shape == (64, self.factor_sizes[i])
+
+            encoding_indices = tf.argmax(-distances, 1)
+            encodings = tf.one_hot(
+                encoding_indices,
+                self.factor_sizes[i],
+                dtype=distances.dtype)
+            supervised_indices = labels[:, i]
+
+            quantized = self.quantize(encoding_indices, embedding)
+            labelled_embeddings = self.quantize(supervised_indices, embedding)
+            e_latent_loss = tf.reduce_mean((tf.stop_gradient(quantized) - z_inputs) ** 2, name="e_latent_loss")
+            q_latent_loss = tf.reduce_mean((quantized - tf.stop_gradient(z_inputs)) ** 2, name="q_latent_loss")
+            e_supervised_loss = tf.reduce_mean(
+                (tf.stop_gradient(labelled_embeddings) - z_inputs_labelled) ** 2,
+                name="e_supervised_loss")
+            q_supervised_loss = tf.reduce_mean(
+                (labelled_embeddings - tf.stop_gradient(z_inputs_labelled)) ** 2,
+                name="q_latent_loss")
+            loss_curr_factor = \
+                q_latent_loss \
+                + self.beta * e_latent_loss\
+                + gamma_annealed * q_supervised_loss\
+                + self.beta * gamma_annealed * e_supervised_loss
+            loss_list += [loss_curr_factor]
+
+            # Straight Through Estimator
+            quantized = z_inputs + tf.stop_gradient(quantized - z_inputs)
+            avg_probs = tf.reduce_mean(encodings, 0)
+            perplexity = tf.exp(-tf.reduce_sum(avg_probs * tf.math.log(avg_probs + 1e-10)))
+            perplexity_list += [perplexity]
+            quantized_list += [quantized]
+
+        # decoder
+        z_quantized = tf.concat(quantized_list, axis=1, name="z_quantized")
+        assert z_quantized.shape == z_inputs.shape
+        # only calculate reconstruction loss on unlabelled points
+        reconstructions = self.decode(z_quantized, data_shape, is_training)
+        per_sample_loss = losses.make_reconstruction_loss(features, reconstructions)
+        reconstruction_loss = tf.reduce_mean(per_sample_loss)
+        latent_loss = tf.reduce_sum(tf.add_n(loss_list), name="latent_loss")
+        loss = tf.add(reconstruction_loss, latent_loss, name="loss")
+        elbo = tf.add(reconstruction_loss, latent_loss, name="elbo")
+
+        # train and evaluation mode
+        if mode == tf.estimator.ModeKeys.TRAIN:
+            optimizer = optimizers.make_vae_optimizer()
+            update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+            train_op = optimizer.minimize(
+                loss=loss, global_step=tf.train.get_global_step())
+            train_op = tf.group([train_op, update_ops])
+            tf.summary.scalar("reconstruction_loss", reconstruction_loss)
+            tf.summary.scalar("elbo", -elbo)
+
+            logging_hook = tf.train.LoggingTensorHook({
+                "loss": loss,
+                "reconstruction_loss": reconstruction_loss,
+                "elbo": -elbo,
+                "latent_loss": latent_loss,
+                "perplexity": tf.reduce_sum(perplexity_list),
+            },
+                every_n_iter=100)
+            return TPUEstimatorSpec(
+                mode=mode,
+                loss=loss,
+                train_op=train_op,
+                training_hooks=[logging_hook])
+        elif mode == tf.estimator.ModeKeys.EVAL:
+            return TPUEstimatorSpec(
+                mode=mode,
+                loss=loss,
+                eval_metrics=(
+                    make_metric_fn(
+                        "reconstruction_loss", "elbo",
+                        "regularizer", "kl_loss", "supervised_loss"
+                    ),
+                    [
+                        reconstruction_loss, -elbo,
+                        regularizer, kl_loss, supervised_loss
+                    ]
+                )
+            )
+        else:
+            raise NotImplementedError("Eval mode not supported.")
+
+    def quantize(self, encoding_indices, embedding):
+        """Returns embedding tensor for a batch of indices."""
+        w = tf.transpose(embedding, [1, 0])
+        # TODO(mareynolds) in V1 we had a validate_indices kwarg, this is no longer
+        # supported in V2. Are we missing anything here?
+        return tf.nn.embedding_lookup(w, encoding_indices, name="quantized")

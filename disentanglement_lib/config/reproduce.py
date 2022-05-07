@@ -63,7 +63,7 @@ from disentanglement_lib.config.embeddings_study_v2 import sweep as embeddings_s
 from disentanglement_lib.config.embeddings_study_v3 import sweep as embeddings_study_v3
 from disentanglement_lib.config.embeddings_study_v4 import sweep as embeddings_study_v4
 from disentanglement_lib.config.embeddings_study_v5 import sweep as embeddings_study_v5
-
+from disentanglement_lib.config.embeddings_study_v6 import sweep as embeddings_study_v6
 
 STUDIES = {
     "unsupervised_study_v1": unsupervised_study_v1.UnsupervisedStudyV1(),
@@ -90,4 +90,5 @@ STUDIES = {
     "embeddings_study_v3": embeddings_study_v3.EmbeddingsStudyV3(),
     "embeddings_study_v4": embeddings_study_v4.EmbeddingsStudyV4(),
     "embeddings_study_v5": embeddings_study_v5.EmbeddingsStudyV5(),
+    "embeddings_study_v6": embeddings_study_v6.EmbeddingsStudyV6(),
 }

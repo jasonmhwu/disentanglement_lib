@@ -142,8 +142,8 @@ def fc_encoder(input_tensor, num_latent, is_training=True):
     return means, log_var
 
 
-@gin.configurable("conv_encoder", allowlist=["num_parameters_scale", "is_training"])
-def conv_encoder(input_tensor, num_latent, num_parameters_scale=1, is_training=True):
+@gin.configurable("conv_encoder", allowlist=["num_parameters_scale", "is_training", "create_logvar"])
+def conv_encoder(input_tensor, num_latent, num_parameters_scale=1, is_training=True, create_logvar=True):
     """Convolutional encoder used in beta-VAE paper for the chairs data.
 
     Based on row 3 of Table 1 on page 13 of "beta-VAE: Learning Basic Visual
@@ -155,6 +155,7 @@ def conv_encoder(input_tensor, num_latent, num_parameters_scale=1, is_training=T
         build encoder on.
       num_latent: Number of latent variables to output.
       is_training: Whether or not the graph is built for training (UNUSED).
+      create_logvar: whether or not to generate logvar variable
 
     Returns:
       means: Output tensor of shape (batch_size, num_latent) with latent variable
@@ -203,8 +204,11 @@ def conv_encoder(input_tensor, num_latent, num_parameters_scale=1, is_training=T
     flat_e4 = tf.layers.flatten(e4)
     e5 = tf.layers.dense(flat_e4, int(256 * num_parameters_scale), activation=tf.nn.relu, name="e5")
     means = tf.layers.dense(e5, num_latent, activation=None, name="means")
-    log_var = tf.layers.dense(e5, num_latent, activation=None, name="log_var")
-    return means, log_var
+    if create_logvar:
+        log_var = tf.layers.dense(e5, num_latent, activation=None, name="log_var")
+        return means, log_var
+    else:
+        return means
 
 
 @gin.configurable("conv_encoder_dropout", allowlist=["num_parameters_scale", "is_training", "dropout_rate"])
