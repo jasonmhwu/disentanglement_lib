@@ -159,11 +159,8 @@ def train(model_dir,
         else:
             # run estimator.predict to get predictions (mean and logvar)
             # TODO: pred_batch_size is currently hard-coded by model. fix it
-            try:
-                num_stochastic_passes = gin.query_parameter("s2_vae.num_stochastic_passes")
-            except:
-                num_stochastic_passes = gin.query_parameter("s2_independent_vae.num_stochastic_passes")
-            pred_batch_size = int(64 // num_stochastic_passes)
+            num_stochastic_passes = 1
+            pred_batch_size = 64
             pred_input_fn = _make_pred_input_fn(dataset, pred_batch_size)
             idx = 0
             pred_timer = time.time()

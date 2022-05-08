@@ -1104,10 +1104,17 @@ class S2IndependentVAE(BaseS2VAE):
 class VQVAE(BaseS2VAE):
     """implementation of Vector-Quantized VAE. embedding is created for each factor"""
 
-    def __init__(self, factor_sizes, embedding_dimensions=gin.REQUIRED):
+    def __init__(self, 
+        factor_sizes,
+        beta=gin.REQUIRED,
+        embedding_dimensions=gin.REQUIRED,
+        gamma_sup=gin.REQUIRED,
+    ):
         self.factor_sizes = factor_sizes
         self.observed_factor_sizes = factor_sizes
         self.embedding_dimensions = embedding_dimensions
+        self.beta = beta
+        self.gamma_sup = gamma_sup
         logging.info(f"observed_factor_sizes is {self.observed_factor_sizes}")
 
     def model_fn(self, features, labels, mode, params):
@@ -1129,33 +1136,34 @@ class VQVAE(BaseS2VAE):
             with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
                 features_tiled = tf.tile(
                     features,
-                    [self.num_stochastic_passes, 1, 1, 1],
+                    [1, 1, 1, 1],
                     name="features_tiled"
                 )
                 # set is_training to True to enable dropout
-                z_mean = self.gaussian_encoder(
+                z_mean, unused_logvar = self.gaussian_encoder(
                     features_tiled, is_training=True)
             return TPUEstimatorSpec(
                 mode=mode,
-                predictions={"mean": z_mean}
+                predictions={"mean": z_mean, "logvar": unused_logvar}
             )
         is_training = (mode == tf.estimator.ModeKeys.TRAIN)
         labelled_features = labels[0]
-        labels = tf.cat(labels[1], tf.int32)
+        labels = tf.cast(labels[1], tf.int32)
         data_shape = features.get_shape().as_list()[1:]
         gamma_annealed = make_annealer(self.gamma_sup, tf.train.get_global_step())
 
         # encoder
         with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
             # encoder
-            z_mean = self.gaussian_encoder(
+            z_mean, _ = self.gaussian_encoder(
                 features, is_training=is_training)
-            z_mean_labelled = self.gaussian_encoder(
+            z_mean_labelled, _ = self.gaussian_encoder(
                 labelled_features, is_training=is_training)
 
         # embedding in each factor
         # note that the shape is emb_dim, factor_sizes
-        loss_list = []
+        latent_loss_list = []
+        supervised_loss_list = []
         quantized_list = []
         perplexity_list = []
         start_dim = 0
@@ -1183,6 +1191,7 @@ class VQVAE(BaseS2VAE):
                         "embedding",
                         shape=[num_dims, self.factor_sizes[i]],
                     )
+                assert embedding.shape == (num_dims, self.factor_sizes[i])
 
             if num_dims == 1:
                 z_inputs = tf.expand_dims(z_mean[:, start_dim], 1)
@@ -1190,6 +1199,7 @@ class VQVAE(BaseS2VAE):
             else:
                 z_inputs = z_mean[:, start_dim: (start_dim + num_dims)]
                 z_inputs_labelled = z_mean_labelled[:, start_dim: (start_dim + num_dims)]
+            start_dim += num_dims
             # calculate distance
             distances = (
                 tf.reduce_sum(z_inputs ** 2, 1, keepdims=True) -
@@ -1205,6 +1215,7 @@ class VQVAE(BaseS2VAE):
             supervised_indices = labels[:, i]
 
             quantized = self.quantize(encoding_indices, embedding)
+            assert quantized.shape == z_inputs.shape
             labelled_embeddings = self.quantize(supervised_indices, embedding)
             e_latent_loss = tf.reduce_mean((tf.stop_gradient(quantized) - z_inputs) ** 2, name="e_latent_loss")
             q_latent_loss = tf.reduce_mean((quantized - tf.stop_gradient(z_inputs)) ** 2, name="q_latent_loss")
@@ -1214,12 +1225,8 @@ class VQVAE(BaseS2VAE):
             q_supervised_loss = tf.reduce_mean(
                 (labelled_embeddings - tf.stop_gradient(z_inputs_labelled)) ** 2,
                 name="q_latent_loss")
-            loss_curr_factor = \
-                q_latent_loss \
-                + self.beta * e_latent_loss\
-                + gamma_annealed * q_supervised_loss\
-                + self.beta * gamma_annealed * e_supervised_loss
-            loss_list += [loss_curr_factor]
+            latent_loss_list += [q_latent_loss + self.beta * e_latent_loss]
+            supervised_loss_list += [q_supervised_loss + self.beta * e_supervised_loss]
 
             # Straight Through Estimator
             quantized = z_inputs + tf.stop_gradient(quantized - z_inputs)
@@ -1229,51 +1236,54 @@ class VQVAE(BaseS2VAE):
             quantized_list += [quantized]
 
         # decoder
-        z_quantized = tf.concat(quantized_list, axis=1, name="z_quantized")
-        assert z_quantized.shape == z_inputs.shape
+        if start_dim < z_mean.get_shape().as_list()[1]:
+            z_quantized = tf.concat(quantized_list + [z_mean[:, start_dim:]], axis=1, name="z_quantized")
+        else:
+            z_quantized = tf.concat(quantized_list, axis=1, name="z_quantized")
+        assert z_quantized.shape == z_mean.shape, f"shapes {z_quantized.shape} and {z_mean.shape} are not compatible"
         # only calculate reconstruction loss on unlabelled points
         reconstructions = self.decode(z_quantized, data_shape, is_training)
         per_sample_loss = losses.make_reconstruction_loss(features, reconstructions)
         reconstruction_loss = tf.reduce_mean(per_sample_loss)
-        latent_loss = tf.reduce_sum(tf.add_n(loss_list), name="latent_loss")
-        loss = tf.add(reconstruction_loss, latent_loss, name="loss")
-        elbo = tf.add(reconstruction_loss, latent_loss, name="elbo")
+        latent_loss = tf.reduce_sum(tf.add_n(latent_loss_list), name="latent_loss")
+        supervised_loss = tf.reduce_sum(tf.add_n(supervised_loss_list), name="supervised_loss")
+        unsupervised_loss = tf.add(reconstruction_loss, latent_loss, name="unsupervised_loss")
+        total_loss = tf.add(unsupervised_loss, gamma_annealed * latent_loss, name="total_loss")
 
         # train and evaluation mode
         if mode == tf.estimator.ModeKeys.TRAIN:
             optimizer = optimizers.make_vae_optimizer()
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
             train_op = optimizer.minimize(
-                loss=loss, global_step=tf.train.get_global_step())
+                loss=total_loss, global_step=tf.train.get_global_step())
             train_op = tf.group([train_op, update_ops])
             tf.summary.scalar("reconstruction_loss", reconstruction_loss)
-            tf.summary.scalar("elbo", -elbo)
 
             logging_hook = tf.train.LoggingTensorHook({
-                "loss": loss,
+                "total_loss": total_loss,
                 "reconstruction_loss": reconstruction_loss,
-                "elbo": -elbo,
                 "latent_loss": latent_loss,
+                "supervised_loss": supervised_loss,
                 "perplexity": tf.reduce_sum(perplexity_list),
             },
                 every_n_iter=100)
             return TPUEstimatorSpec(
                 mode=mode,
-                loss=loss,
+                loss=total_loss,
                 train_op=train_op,
                 training_hooks=[logging_hook])
         elif mode == tf.estimator.ModeKeys.EVAL:
             return TPUEstimatorSpec(
                 mode=mode,
-                loss=loss,
+                loss=total_loss,
                 eval_metrics=(
                     make_metric_fn(
-                        "reconstruction_loss", "elbo",
-                        "regularizer", "kl_loss", "supervised_loss"
+                        "total_loss", "reconstruction_loss",
+                        "latent_loss", "supervised_loss", "perplexity",
                     ),
                     [
-                        reconstruction_loss, -elbo,
-                        regularizer, kl_loss, supervised_loss
+                        total_loss, reconstruction_loss,
+                        latent_loss, supervised_loss, tf.reduce_sum(perplexity_list)
                     ]
                 )
             )

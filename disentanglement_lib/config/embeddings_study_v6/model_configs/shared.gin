@@ -50,7 +50,6 @@ discriminator/AdamOptimizer.learning_rate = 0.0001
 conv_encoder.num_parameters_scale = 1.
 deconv_decoder.num_parameters_scale = 1.
 encoder.encoder_fn = @conv_encoder
-conv_encoder.create_logvar = False  # specific to vq-vae!!
 decoder.decoder_fn = @deconv_decoder
 reconstruction_loss.loss_fn = @bernoulli_loss
 

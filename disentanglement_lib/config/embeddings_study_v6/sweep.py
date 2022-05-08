@@ -107,9 +107,8 @@ def get_default_models():
     model_fn = h.fixed("model.model", "@vq_vae()")
     betas = h.sweep("vq_vae.beta", h.discrete([1., 4., 16.]))
     gamma_sups = h.sweep("vq_vae.gamma_sup", h.discrete([1.]))
-    num_stochastic_passes = h.sweep("vq_vae.num_stochastic_passes", h.discrete([1]))
-    parameters = h.product([betas, gamma_sups, num_stochastic_passes])
-    config_vqvae = h.zipit([model_name, parameters, model_fn])
+    parameters = h.product([betas, gamma_sups])
+    config_vq_vae = h.zipit([model_name, parameters, model_fn])
 
     all_models = h.chainit([
         config_vq_vae
