@@ -89,11 +89,11 @@ class BaseS2VAE(vae.BaseVAE):
                     "logvar": z_logvar,
                 }
             )
+        
         is_training = (mode == tf.estimator.ModeKeys.TRAIN)
         labelled_features = labels[0]
         labels = tf.to_float(labels[1])
         data_shape = features.get_shape().as_list()[1:]
-
         # encoder
         with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
             z_mean, z_logvar = self.gaussian_encoder(
@@ -130,7 +130,7 @@ class BaseS2VAE(vae.BaseVAE):
                 "loss": loss,
                 "reconstruction_loss": reconstruction_loss,
                 "elbo": -elbo,
-                "supervised_loss": supervised_loss
+                "supervised_loss": supervised_loss,
             },
                 every_n_iter=100)
             return TPUEstimatorSpec(
@@ -1162,10 +1162,13 @@ class VQVAE(BaseS2VAE):
 
         # embedding in each factor
         # note that the shape is emb_dim, factor_sizes
-        latent_loss_list = []
-        supervised_loss_list = []
+        e_latent_loss_list = []
+        cross_entropy_loss_list = []
+        q_latent_loss_list = []
+        q_supervised_loss_list = []
         quantized_list = []
         perplexity_list = []
+        supervised_acc_list = []
         start_dim = 0
         for i, num_dims in enumerate(self.embedding_dimensions):
             with tf.variable_scope(str(i), reuse=tf.AUTO_REUSE):
@@ -1194,46 +1197,64 @@ class VQVAE(BaseS2VAE):
                 assert embedding.shape == (num_dims, self.factor_sizes[i])
 
             if num_dims == 1:
-                z_inputs = tf.expand_dims(z_mean[:, start_dim], 1)
-                z_inputs_labelled = tf.expand_dims(z_mean_labelled[:, start_dim], 1)
+                z_inputs = tf.expand_dims(z_mean[:, start_dim], 1, name="z_inputs")
+                z_inputs_labelled = tf.expand_dims(z_mean_labelled[:, start_dim], 1, name="z_inputs_labelled")
             else:
                 z_inputs = z_mean[:, start_dim: (start_dim + num_dims)]
                 z_inputs_labelled = z_mean_labelled[:, start_dim: (start_dim + num_dims)]
             start_dim += num_dims
             # calculate distance
-            distances = (
-                tf.reduce_sum(z_inputs ** 2, 1, keepdims=True) -
-                2 * tf.matmul(z_inputs, embedding) +
-                tf.reduce_sum(embedding ** 2, 0, keepdims=True))
+            distances = tf.reduce_sum(
+                tf.square(tf.expand_dims(z_inputs, axis=1) - tf.transpose(embedding)), axis=2)
+            # choose to only update encoder with supervised loss.
+            distances_labelled = tf.reduce_sum(tf.square(
+                tf.expand_dims(z_inputs, axis=1) - tf.stop_gradient(tf.transpose(embedding))
+            ), axis=2)
+            
+            # distances = (
+            #     tf.reduce_sum(z_inputs ** 2, 1, keepdims=True) -
+            #     2 * tf.matmul(z_inputs, embedding) +
+            #     tf.reduce_sum(embedding ** 2, 0, keepdims=True))
             assert distances.shape == (64, self.factor_sizes[i])
+            assert distances_labelled.shape == (64, self.factor_sizes[i])
+            # distances_labelled = (
+            #     tf.reduce_sum(z_inputs_labelled ** 2, 1, keepdims=True) -
+            #     2 * tf.matmul(z_inputs_labelled, embedding) +
+            #     tf.reduce_sum(embedding ** 2, 0, keepdims=True))
 
             encoding_indices = tf.argmax(-distances, 1)
             encodings = tf.one_hot(
                 encoding_indices,
                 self.factor_sizes[i],
                 dtype=distances.dtype)
-            supervised_indices = labels[:, i]
-
+            supervised_labels = tf.one_hot(tf.to_int32(labels[:, i]), self.factor_sizes[i])
+            
             quantized = self.quantize(encoding_indices, embedding)
             assert quantized.shape == z_inputs.shape
-            labelled_embeddings = self.quantize(supervised_indices, embedding)
-            e_latent_loss = tf.reduce_mean((tf.stop_gradient(quantized) - z_inputs) ** 2, name="e_latent_loss")
-            q_latent_loss = tf.reduce_mean((quantized - tf.stop_gradient(z_inputs)) ** 2, name="q_latent_loss")
-            e_supervised_loss = tf.reduce_mean(
-                (tf.stop_gradient(labelled_embeddings) - z_inputs_labelled) ** 2,
-                name="e_supervised_loss")
+            labelled_embeddings = self.quantize(labels[:, i], embedding)
+            e_latent_loss = tf.reduce_mean(
+                num_dims * (tf.stop_gradient(quantized) - z_inputs) ** 2, name="e_latent_loss")
+            q_latent_loss = tf.reduce_mean(
+                num_dims * (quantized - tf.stop_gradient(z_inputs)) ** 2, name="q_latent_loss")
+            
+            # calculate supervised loss function
             q_supervised_loss = tf.reduce_mean(
-                (labelled_embeddings - tf.stop_gradient(z_inputs_labelled)) ** 2,
+                num_dims * (labelled_embeddings - tf.stop_gradient(z_inputs_labelled)) ** 2,
                 name="q_latent_loss")
-            latent_loss_list += [q_latent_loss + self.beta * e_latent_loss]
-            supervised_loss_list += [q_supervised_loss + self.beta * e_supervised_loss]
+            e_latent_loss_list += [self.beta * e_latent_loss]
+            q_latent_loss_list += [q_latent_loss]
+            q_supervised_loss_list += [q_supervised_loss]
+            cross_entropy_loss_list += [tf.losses.softmax_cross_entropy(supervised_labels, -distances_labelled)]
 
             # Straight Through Estimator
-            quantized = z_inputs + tf.stop_gradient(quantized - z_inputs)
+            quantized_decoder = z_inputs + tf.stop_gradient(quantized - z_inputs)
             avg_probs = tf.reduce_mean(encodings, 0)
             perplexity = tf.exp(-tf.reduce_sum(avg_probs * tf.math.log(avg_probs + 1e-10)))
             perplexity_list += [perplexity]
-            quantized_list += [quantized]
+            supervised_acc = tf.reduce_sum(
+                    tf.cast(tf.equal(tf.to_int64(labels[:, i]), tf.argmax(-distances_labelled, 1)), tf.float32)) / 64.
+            supervised_acc_list += [supervised_acc]
+            quantized_list += [quantized_decoder]
 
         # decoder
         if start_dim < z_mean.get_shape().as_list()[1]:
@@ -1245,10 +1266,14 @@ class VQVAE(BaseS2VAE):
         reconstructions = self.decode(z_quantized, data_shape, is_training)
         per_sample_loss = losses.make_reconstruction_loss(features, reconstructions)
         reconstruction_loss = tf.reduce_mean(per_sample_loss)
-        latent_loss = tf.reduce_sum(tf.add_n(latent_loss_list), name="latent_loss")
-        supervised_loss = tf.reduce_sum(tf.add_n(supervised_loss_list), name="supervised_loss")
+        e_latent_loss = tf.reduce_sum(tf.add_n(e_latent_loss_list), name="e_latent_loss")
+        q_latent_loss = tf.reduce_sum(tf.add_n(q_latent_loss_list), name="q_latent_loss")
+        q_supervised_loss = tf.reduce_sum(tf.add_n(q_supervised_loss_list), name="q_supervised_loss")
+        xent_loss = tf.reduce_sum(tf.add_n(cross_entropy_loss_list), name="xent_supervised_loss")
+        latent_loss = tf.add(e_latent_loss, q_latent_loss, name="latent_loss")
         unsupervised_loss = tf.add(reconstruction_loss, latent_loss, name="unsupervised_loss")
-        total_loss = tf.add(unsupervised_loss, gamma_annealed * latent_loss, name="total_loss")
+        supervised_loss = tf.add(xent_loss, q_supervised_loss, name="supervised_loss")
+        total_loss = tf.add(unsupervised_loss, gamma_annealed * supervised_loss, name="total_loss")
 
         # train and evaluation mode
         if mode == tf.estimator.ModeKeys.TRAIN:
@@ -1262,9 +1287,12 @@ class VQVAE(BaseS2VAE):
             logging_hook = tf.train.LoggingTensorHook({
                 "total_loss": total_loss,
                 "reconstruction_loss": reconstruction_loss,
-                "latent_loss": latent_loss,
-                "supervised_loss": supervised_loss,
+                "e_latent_loss": e_latent_loss,
+                "q_latent_loss": q_latent_loss,
+                "xent_loss": xent_loss,
+                "q_supervised_loss": q_supervised_loss,
                 "perplexity": tf.reduce_sum(perplexity_list),
+                "supervised_accuracy": tf.reduce_mean(supervised_acc_list)
             },
                 every_n_iter=100)
             return TPUEstimatorSpec(

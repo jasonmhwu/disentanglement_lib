@@ -104,6 +104,8 @@ def sample_random_supervised_data(
     post_delete_unlabelled_set_size = len(ground_truth_data.unlabelled_indices)
     assert post_delete_unlabelled_set_size == pre_delete_unlabelled_set_size - num_labelled_samples
     sampled_observations = ground_truth_data.images[sampled_indices]
+    if np.mean(sampled_observations) > 1:
+        sampled_observations = sampled_observations / 255.
     if len(sampled_observations.shape) == 3:
         sampled_observations = np.expand_dims(sampled_observations, 3)
     sampled_factors = ground_truth_data.index_to_factors(sampled_indices)
@@ -161,6 +163,8 @@ def highest_summed_uncertainty(
     post_delete_unlabelled_set_size = len(ground_truth_data.unlabelled_indices)
     assert post_delete_unlabelled_set_size == pre_delete_unlabelled_set_size - num_labelled_samples
     selected_observations = ground_truth_data.images[selected_indices]
+    if np.mean(selected_observations) > 1:
+        selected_observations = selected_observations / 255.
     if len(selected_observations.shape) == 3:
         selected_observations = np.expand_dims(selected_observations, 3)
     selected_factors = ground_truth_data.index_to_factors(selected_indices)
@@ -234,6 +238,8 @@ def core_set_greedy(
     post_delete_unlabelled_set_size = len(ground_truth_data.unlabelled_indices)
     assert post_delete_unlabelled_set_size == pre_delete_unlabelled_set_size - num_labelled_samples
     selected_observations = ground_truth_data.images[greedy_indices]
+    if np.mean(selected_observations) > 1:
+        selected_observations = selected_observations / 255.
     if len(selected_observations.shape) == 3:
         selected_observations = np.expand_dims(selected_observations, 3)
     selected_factors = ground_truth_data.index_to_factors(greedy_indices)

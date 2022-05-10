@@ -368,12 +368,13 @@ def enumerate_dataset_from_ground_truth_data(ground_truth_data):
       tf.data.Dataset, each point is an image (np.array(64, 64, 1)).
     """
     def sequential_generator():
+        dividend = 1. if np.mean(ground_truth_data.images[0]) <= 1 else 255.
         if len(ground_truth_data.images.shape) == 3:
             for idx in range(len(ground_truth_data.images)):
-                yield np.expand_dims(ground_truth_data.images[idx], axis=2)
+                yield np.expand_dims(ground_truth_data.images[idx] / dividend, axis=2)
         else:
             for idx in range(len(ground_truth_data.images)):
-                yield ground_truth_data.images[idx]
+                yield ground_truth_data.images[idx] / dividend
 
     enumerate_dataset = tf.data.Dataset.from_generator(
         sequential_generator,
